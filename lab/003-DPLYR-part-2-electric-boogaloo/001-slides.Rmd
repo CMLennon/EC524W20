@@ -1,0 +1,350 @@
+---
+title: "Mutate and So On"
+subtitle: "dplyr tools"
+author: "Connor Lennon"
+#date: "`r format(Sys.time(), '%d %B %Y')`"
+date: "14 January 2020"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    # self_contained: true
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+exclude: true
+
+```{R, setup, include = F}
+library(pacman)
+p_load(
+  broom, tidyverse,
+  ggplot2, ggthemes, ggforce, ggridges, cowplot,
+  latex2exp, viridis, extrafont, gridExtra, plotly,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr,
+  lubridate, knitr, future, furrr,
+  estimatr, FNN, caret, parsnip,
+  huxtable, here, magrittr, tidyimpute
+)
+# Define colors
+red_pink   = "#e64173"
+turquoise  = "#20B2AA"
+orange     = "#FFA500"
+red        = "#fb6107"
+blue       = "#3b3b9a"
+green      = "#8bb174"
+grey_light = "grey70"
+grey_mid   = "grey50"
+grey_dark  = "grey20"
+purple     = "#6A5ACD"
+slate      = "#314f4f"
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(knitr.table.format = "html")
+```
+
+---
+layout: true
+# Mutate
+
+---
+class: inverse, middle
+---
+name: sl-definition
+## A refresher on mutate
+
+--
+
+We discussed the function .orange[mutate] several weeks ago. 
+
+--
+
+Purposes:
+
+- .hi-orange[Create] new variables using old variables
+--
+
+- .hi-blue[Transforming] existing data into more usable forms
+
+--
+- .hi-orange[Filling]   in missing values
+
+---
+## Pipes
+
+Just a reminder: the `%>%` operator is called a pipe, and, in plain english translates to:
+
+  - `data %>% command1 %>% command2`
+  - data which then goes into command1 which then goes into command2 
+---
+
+---
+## Checking columns for NAs
+
+Before we begin on .hi-blue[mutate] - there is a really handy way to check to see if your numeric columns have NAs, using the function `colSums()`.
+
+--
+```{r}
+starwars %>% select_if(is.numeric) %>% colSums() %>% is.na()
+```
+--
+to check for the .hi-orange[count] of each, we can use our old friend `sapply`
+
+```{r}
+sapply(starwars %>% select_if(is.numeric), function(x) sum(is.na(x))) 
+```
+
+---
+name: sl-classes
+## How do we use 'regular' mutate?
+
+--
+using the starwars data - 
+
+--
+
+```{r}
+#1 kilo is ~ 2.205 pounds
+starwars %>% mutate(masslbs = mass*2.205) %>% select(masslbs, name) %>% head(3)
+```
+
+---
+We can also use it to .hi-orange[transform] character columns into factors
+```{r}
+starwars %>% mutate(hair_color = as.factor(hair_color)) %>%
+  select(hair_color, name) %>% 
+  head(3)
+```
+
+1. .hi-slate[Mutate] takes in data, and returns a new dataframe with a new column as defined, with whatever you told it to do. 
+
+---
+layout: true
+# Mutate's Cousins
+---
+class: inverse, middle
+---
+
+name: sl-classes
+## Mutate_at
+
+.hi-lblue[Mutate_at()] is essentially a streamlined version of mutate that lets you run a bunch of mutate commands all at once with a single line.
+
+--
+For instance, we saw above that C3PO and R2-D2 had `NA` in their hair_color category. We could replace these with the .hi-orange[most common value], but it makes more sense to use a character string telling us this means they have .hi-blue[no hair].
+
+--
+
+This is probably true for eye color, amongst several other variables. What if we could do this for all of those columns in one line... pretty handy right?
+
+---
+name: sl-classes
+## Mutate_at
+
+Mutate_at takes:
+--
+
+ - some data (.orange[.tbl])
+ 
+--
+
+ - a vector of variables (.blue[.vars])
+ 
+--
+
+ - a single or list of functions (.pink[.funs])
+ 
+--
+
+"mutate_at(.orange[.tbl]   ,.blue[.vars]   , .pink[.funs])"
+---
+
+name: sl-classes
+## Mutate_at
+```{r}
+fix_human_cols = function(x) replace_na(x, 'none')  
+
+starwars %>% mutate_at(.vars = vars(hair_color:eye_color), 
+                       fix_human_cols) %>% 
+  head(3) %>% 
+  select(hair_color:eye_color)
+```
+
+---
+
+Even better:
+
+```{r}
+starwars %>% mutate_at(.vars = vars(contains("color")), fix_human_cols) %>%
+  head(3) %>% 
+  select(hair_color:eye_color)
+```
+
+---
+
+name: sl-classes
+## Mutate_at
+
+But we can also use this to turn our columns at the end of our dataframe into actual numbers!
+--
+```{r}
+#these variables are lists of the movies each character appear in, plus vehicles and spaceships they have used
+starwars %>% select(films:starships) %>% head(1)
+```
+---
+
+But we can also use this to turn our columns at the end of our dataframe into actual numbers!
+
+```{r}
+counter = function(x) lengths(x) %>% as.numeric()
+
+starwars %<>% mutate_at(.vars = vars(films, vehicles, starships), 
+                        .funs = counter)
+starwars %>% select(name,films:starships) %>% 
+  head(4)
+```
+
+---
+
+name: sl-classes
+## Mutate_if
+
+Maybe we don't know yet what kind of data are in our dataset. Instead, we can use `mutate_if` to pick our variables based on some .hi-orange[logical] condition.
+
+--
+
+Mutate_if takes:
+
+--
+
+- data(.lblue[.tbl])
+
+--
+
+- a logical expression (.blue[.predicate])
+
+--
+
+- a function or list of functions (.pink[.funs])
+
+--
+
+mutate_if(.lblue[.tbl],   .blue[.predicate],   .pink[.funs])
+---
+
+name: sl-classes
+This lets us do cool na fills by type
+```{r}
+huh = function(x) replace_na(x, 'who_knows')
+temp <- starwars %>% mutate_if(is.character, .funs = huh)
+```
+
+```{r, echo=FALSE}
+temp <- temp[20:25,] %>% select_if(is.character)
+temp[,c(1,3,6)]
+```
+---
+
+name: sl-classes
+We can even center and scale our data, using most common values to impute NAs. First we need a modal function (there really isn't a built in one)
+
+--
+
+```{r}
+Mode = function(x){
+    ta = table(x)
+    tam = max(ta)
+    if (all(ta == tam))
+         mod = NA
+    else
+         if(is.numeric(x))
+    mod = as.numeric(names(ta)[ta == tam])
+    else
+         mod = names(ta)[ta == tam]
+    return(mod)
+}
+```
+---
+
+name: sl-classes
+Then we can use it to impute and center scale our data
+```{r}
+cntr_scle_md = function(x) {
+x = replace(x, is.na(x), Mode(na.omit(x)))
+
+if(is.numeric(x)){
+  x = (x - mean(x))/sd(x)
+}
+
+return(x)
+}
+
+starwars %>% mutate_if(is.numeric, .funs = cntr_scle_md) %>% head(3)
+```
+--
+
+But maybe we want to do this for ALL of our columns...
+
+---
+
+name: sl-classes
+## mutate_all
+
+`mutate_all` does exactly what you think it might. It mutates the whole dataframe, all at once. Now that we have that handy mode function, let's use it to impute ALL of our data in our dataframe.
+
+--
+
+Let's see what .hi-blue[mutate all] needs to work:
+
+- data (.hi-blue[.tbl])
+
+--
+
+- a function (.hi-orange[.funs])
+
+--
+
+`mutate_all(.tbl,   .funs,   ...)`
+
+---
+
+Let's see it work
+
+```{r}
+mode_impute = function(x) {
+  x = replace(x, is.na(x), Mode(na.omit(x)))
+}
+
+starwars %>% mutate_all(mode_impute) %>% head(6)
+```
+
+---
+
+## Your turn!
+
+- go to kaggle, and download the .hi-orange[wine reviews] dataset. There's a lot of character data, missing values and fun stuff like that you can work with. I want you to practice doing some data cleaning of your own
+
+- you can find it here: https://www.kaggle.com/zynicide/wine-reviews
+
+- .hi-orange[Next time:] caret and recipes
+
+--
+
+
+
+
+```{R, save pdfs, include = F, eval = F}
+system("`npm bin`/decktape remark 001-slides.html 001-slides.pdf --chrome-arg=--allow-file-access-from-files --slides 1-100")
+```
