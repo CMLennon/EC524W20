@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Lab .mono[004]</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Connor Lennon" />
+    <meta name="date" content="2020-02-21" />
+    <link href="004-slides_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="004-slides_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="004-slides_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Lab .mono[004]
+## Data Cleaning and Workflow with Tidymodels
+### Connor Lennon
+### 21 February 2020
+
+---
+
+exclude: true
+
+
+---
+class: inverse, middle
+# Welcome to Parsnip
+
+---
+name: admin
+# Welcome to Parsnip
+
+## Why bother with Tidymodels?
+
+- As Ed said: 
+--
+.hi-orange[ It's the future, Marty]
+
+--
+&lt;img src="images/ec524-heart-disease.jpg" width="60%" style="display: block; margin: auto;" /&gt;
+
+No but really: it is extremely intuitive, and streamlines a lot of the annoying parts of data science (data cleaning, cross validation, mutliple model testing, etc.)
+
+---
+# Welcome to Parsnip
+
+## Why bother with Tidymodels?
+
+- Why use this over `caret()`?
+
+--
+ 
+Two reasons:
+ 
+1.) It plays well with the tidyverse, and uses the very nice pipes system from dplyr
+  
+--
+  
+2.) It lets you quickly substitute in new parts to reuse old code - making your life a LOT simpler
+  
+--
+
+But, to use `Parsnip` or `tidymodels`, you first have to have a good sense of the 'data science workflow' according to the makers
+
+
+---
+class: inverse, middle
+# Workflow
+---
+name: admin
+#Workflow
+
+## Workflows
+
+&lt;img src="images/Workflows.png" width="80%" style="display: block; margin: auto;" /&gt;
+.footnote[
+.orange[*] Source: https://education.rstudio.com/blog/2020/02/conf20-intro-ml/.
+]
+---
+name: parsnip
+## Example with just parsnip
+
+.hi-blue[Parsnip] lets us build a model much like Caret, but in the .hi-orange[smallest possible] building blocks.
+
+These include, in order:
+
+--
+
+  - A model type. This is a broad category of model, like .hi[linear regression] or .hi-blue[classification tree].
+
+--
+
+  - An "engine." This is the package that will run the model type you provided above. This could be either `lm` or  `glmnet` for linear regression
+
+--
+
+  - A fit object. This fits the data to the model you built above
+  
+--
+
+Let's do a worked example, using your homework data from the last project.
+
+
+---
+# Models with Parsnip
+
+Let's read in the heart data, and then we can use the `parsnip()` package to run a simple regression
+
+
+
+
+```r
+#Let's build a model in steps
+lazzo = linear_reg()
+```
+---
+# Models with Parsnip
+
+Let's read in the heart data, and then we can use the `parsnip()` package to run a simple regression
+
+
+```r
+#Let's build a model in steps
+lazzo = linear_reg() %&gt;% 
+  set_engine('lm')
+```
+
+
+---
+# Models with Parsnip
+
+Let's read in the heart data, and then we can use the `parsnip()` package to run a simple regression
+
+
+```r
+#Let's build a model in steps
+lazzo = linear_reg() %&gt;% 
+  set_engine('lm') %&gt;% 
+    parsnip::fit(
+    heart_disease ~ sex + chest_pain + resting_bp, 
+    data = heart_data_tr
+    )
+
+rez = predict(lazzo, new_data = heart_data_tr) %&gt;% rename(lm = .pred)
+mean((rez[[1]] %&gt;% round() - heart_data_tr$heart_disease)^2, na.rm = T)
+```
+
+```
+#&gt; [1] 0.2587719
+```
+
+Not great. Maybe a lasso would help us? All that work again? 
+--
+.hi[No!]
+
+---
+# Models with Parsnip
+
+I can just overwrite an engine/model and then rerun all of this with one simple update
+
+
+```r
+#build initial model
+lazzo_mod = linear_reg() %&gt;% 
+  set_engine('lm') 
+```
+
+--
+
+
+```r
+#switch to lasso/ridge/elasticnet. We can set hyperparameters in 'set_args'
+results=lazzo_mod %&gt;% set_engine('glmnet') %&gt;% 
+  set_args(penalty = 0.001, mixture = 0.5) %&gt;%
+    parsnip::fit(
+    heart_disease ~ sex + chest_pain + resting_bp, 
+    data = heart_data_tr
+    )
+
+rez = predict(results, new_data = heart_data_tr)
+mean((rez[[1]] %&gt;% round() - heart_data_tr$heart_disease)^2, na.rm = T)
+```
+
+```
+#&gt; [1] 0.2587719
+```
+---
+# Models with Parsnip
+
+But, from your homework, you know you .hi[really] need to do this using classification methods. 
+--
+And that requires data cleaning, to at the very least get some factors built. 
+--
+.hi-orange[Ugh]
+
+--
+
+That's where `recipes()` is going to save the day.
+
+But - quickly, we need to revisit our workflow diagram, because we're going to organize everything according to a .hi[workflow] object. 
+--
+Yup, that's a package too
+
+---
+#Workflows()
+
+&lt;img src="images/Workflows.png" width="80%" style="display: block; margin: auto;" /&gt;
+.footnote[
+.orange[*] Source: https://education.rstudio.com/blog/2020/02/conf20-intro-ml/.
+]
+
+---
+class: inverse, middle
+# Improving your workflow with workflow
+
+---
+# Improving your workflow with workflow
+
+Using workflow is quite simple. You just make a `workflow()` object, and tack on steps using a `%&gt;%`.
+
+
+```r
+#workflow always starts with workflow
+my_big_tuna = workflow()
+```
+
+
+---
+# Improving your workflow with workflow
+
+Using workflow is quite simple. You just make a `workflow()` object, and tack on steps using a `%&gt;%`.
+
+
+```r
+#let's use a formula to tell our model what to do
+my_big_tuna %&lt;&gt;% add_formula(heart_disease ~ sex + chest_pain + resting_bp)
+```
+
+
+---
+# Improving your workflow with workflow
+
+Using workflow is quite simple. You just make a `workflow()` object, and tack on steps using a `%&gt;%`.
+
+
+```r
+#now we can add a parsnip model from before onto our workflow to predict some stuff
+my_big_tuna %&lt;&gt;% add_model(lazzo_mod)
+```
+
+---
+# Improving your workflow with workflow
+
+Using workflow is quite simple. You just make a `workflow()` object, and tack on steps using a `%&gt;%`.
+
+
+```r
+#now we can just pass this thing to fit, and get our fitted object back.
+parsnip::fit(my_big_tuna, data = heart_data_tr)
+```
+
+```
+#&gt; ══ Workflow [trained] ══════════════════════════════════════════════════════════════════════════════════════════
+#&gt; Preprocessor: Formula
+#&gt; Model: linear_reg()
+#&gt; 
+#&gt; ── Preprocessor ────────────────────────────────────────────────────────────────────────────────────────────────
+#&gt; heart_disease ~ sex + chest_pain + resting_bp
+#&gt; 
+#&gt; ── Model ───────────────────────────────────────────────────────────────────────────────────────────────────────
+#&gt; 
+#&gt; Call:
+#&gt; stats::lm(formula = formula, data = data)
+#&gt; 
+#&gt; Coefficients:
+#&gt; (Intercept)          sex   chest_pain   resting_bp  
+#&gt;   -1.134294     0.304522     0.219247     0.005328
+```
+
+
+---
+# Improving your workflow with workflow
+
+Oh oops. That was an `lm()` model. We might want our `glmnet` back. Ok, no problem
+
+--
+
+
+```r
+#Just create a new model
+real_lazzo = lazzo_mod %&gt;% 
+  set_engine('glmnet') %&gt;% 
+  set_args(penalty = 0.001, mixture = 0.5)
+```
+
+
+```r
+#...and update our workflow accordingly
+my_big_tuna %&lt;&gt;% update_model(real_lazzo)
+parsnip::fit(my_big_tuna, data = heart_data_tr) %&gt;% predict(heart_data_tr) %&gt;% rmse(estimate = .[[1]], truth = heart_data_tr$heart_disease)
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 32.2222222222222%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.metric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimator</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimate</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">rmse</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">standard</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.425</td>
+</tr>
+</table>
+
+
+--
+
+Right... back to `recipes`
+
+---
+class: inverse, middle
+# Recipes
+
+
+---
+#Recipes
+
+## Imagine You are baking muffins...
+
+The idea behind recipes is to treat .hi-orange[data processing] and .hi-blue[model building] as an understandable process (.hi[recipe]) for a program to follow to 'bake' your predictions into the model you want.
+
+--
+
+- .hi-blue[Step 1:] Separate your ingredients: tell your program what variables are which. This is done using formula and model objects
+
+--
+
+- .hi-orange[Step 2:] Provide a list of directions to mix your ingredients (change them) in order.
+
+--
+
+- .hi-orange[Step 3:] Prep your data using your instructions (mixing the recipe)
+
+Recipes essentially act like super sophisticated .hi-orange[formulae] objects, and let you tell your model how it needs to treat any new data it sees.
+
+---
+#Recipes
+
+## Example
+
+If you recall, we don't want to use ID to do our predicting! Maybe we could keep that variable, and exclude it from all of our data cleaning, but still hold onto it in our data frame... Yup. We can do that.
+
+--
+
+`Recipes` uses .hi-orange[roles] to separate your .hi-blue[ingredients (variables)] into separate buckets. 
+--
+
+I'll give in and use the baking analogy: you don't want to sift your eggs and beat your salt. 
+
+--
+
+First though - here's an adorable graphic.
+
+---
+#Recipe
+&lt;img src="images/socute.png" style="display: block; margin: auto;" /&gt;
+
+
+---
+#Recipe
+
+A recipe begins its life, usually, as a formula object that takes some information from our data.
+
+--
+
+Let's make one and see what it looks like
+
+
+```r
+hd_recipe = recipe(heart_disease ~ ., data = heart_data_tr) 
+
+hd_recipe %&gt;% summary() %&gt;% head(3)
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 30%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">variable</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">type</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">role</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">source</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">id</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">numeric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">predictor</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">original</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">age</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">numeric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">predictor</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt;">original</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">sex</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">numeric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">predictor</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">original</td>
+</tr>
+</table>
+
+
+---
+#Recipe
+
+## Roles
+
+We can change or add roles (variables can have multiple) by either `update_role` or `add_role`
+
+
+```r
+hd_recipe %&lt;&gt;% 
+  update_role(id, new_role = 'id_variables') %&gt;% 
+  add_role(sex, exercise_angina, high_sugar, chest_pain, slope, new_role = 'sneaky_dummies')
+```
+
+---
+# Recipes
+
+## Now what?
+
+Ok, this might not seem useful to you... .hi[but just wait.] We are essentially creating different 'dry ingredients/wet ingredients' shelves in our cabinet so we can tell R to treat them differently in preprocessing (or for another reason.)
+
+--
+
+ - Let's do our preprocessing using this recipe analogy. We can use what are called .hi[selectors] to pick and choose what variables to transform and how. Here's a brief snapshot of some of them that are available
+
+
+---
+# Recipes
+
+
+```r
+knitr::include_graphics('images/selectors.png')
+```
+
+&lt;img src="images/selectors.png" width="80%" style="display: block; margin: auto;" /&gt;
+
+These then get passed to .hi-orange['step_*'] methods, of which there are a TON. The cool thing is, is that these roughly follow the naming convention:
+
+step_
+--
+your_friendly_preProcess_method_from_caret()
+
+--
+
+Let's see these in action
+
+---
+#Recipes
+
+ - We want to build our preprocessing as if we were writing a recipe for someone else to replicate, using a series of steps.
+ 
+
+```r
+hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor)
+```
+
+---
+#Recipes
+
+ - We want to build our preprocessing as if we were writing a recipe for someone else to replicate, using a series of steps.
+ 
+
+
+ 
+
+```r
+hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor) %&gt;%
+  step_center(all_predictors(), 
+                           -all_nominal()) 
+```
+
+---
+#Recipes
+
+ - We want to build our preprocessing as if we were writing a recipe for someone else to replicate, using a series of steps.
+ 
+
+ 
+
+```r
+hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor) %&gt;%
+  step_center(all_predictors(), 
+                           -all_nominal())  %&gt;% 
+  step_scale(all_predictors(), -all_nominal()) %&gt;%
+  step_nzv(all_predictors()) %&gt;%
+  step_mutate(heart_disease = as.factor(heart_disease))
+```
+
+---
+#Recipes
+However, we probably also want to do imputation on our data. Let's do that too.
+
+
+```r
+hd_recipe %&lt;&gt;% step_medianimpute(all_numeric()) %&gt;% step_modeimpute(all_nominal())
+```
+
+Great, we have done a ton of...
+--
+
+.hi-orange[what?]
+
+--
+
+- We've now given a set of directions to follow when we train a model.
+
+--
+
+- what model?
+
+--
+Any model we want, so long as we are using the data cleaning process we just described. 
+
+---
+# Recipes
+
+## Training preprocessing?
+
+Before we do anything more, we actually have to set up our ingredients in our shelves. This is what `prep()` does.
+
+--
+
+
+```r
+prepped_recipe = prep(hd_recipe)
+```
+--
+
+Why do we need to train a preprocessing step, you might ask?
+
+--
+
+.hi[So we can use the SAME process to transform any dataset we like]
+
+- for instance, our testing data.
+
+---
+# Recipes
+
+This uses the .hi[bake] functionality of recipes. 
+
+--
+
+By .hi-blue[prepping] the recipe, we now have a set of directions with numeric transformations that can be generalized out of sample.
+
+--
+
+
+```r
+heart_data_ts$heart_disease = -1
+bake(prepped_recipe, new_data = heart_data_ts) %&gt;% 
+  head(2) %&gt;%
+  select(age:ecg)
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 80%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">age</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">sex</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">chest_pain</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">resting_bp</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">cholestoral</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">high_sugar</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">ecg</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">-1.26</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">3</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">-0.111</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1.35&nbsp;</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">-1.03</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">-1.15</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">1</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">2</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">-0.672</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.297</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">-1.03</td>
+</tr>
+</table>
+
+
+---
+#Recipes
+
+## Getting the data out of the tidymodels sphere
+
+Now, if we're just interested in the training data, we can actually get the transformed data using the `juice` function. I'll show you that in a second.
+
+--
+
+- Think of `juice()` as .hi[bake light]
+
+--
+
+.hi[Let's bring this all together]
+---
+
+
+
+#Tidymodel process
+
+Just like with our model object, we can pass our recipe object to the workflow directly, in place of the formula we had before.
+
+
+```r
+#Classification tree?
+ctree_mod = decision_tree() %&gt;% set_engine('rpart') %&gt;% 
+  set_args(min_n = 8) %&gt;% 
+  set_mode('classification')
+
+my_big_tuna = workflow() %&gt;% 
+  add_recipe(hd_recipe) %&gt;% add_model(ctree_mod)
+```
+---
+#Tidymodel process
+
+Now, we can just fit this data here!
+
+
+```r
+truevals = (prepped_recipe %&gt;% juice())$heart_disease
+
+hdpred = parsnip::fit(my_big_tuna,
+      data = heart_data_tr) %&gt;% predict(new_data = heart_data_tr, type = 'prob') %&gt;% 
+  mutate(true_pred = truevals,
+         pred = as.numeric(.pred_1))
+```
+i;gbuj,j
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
