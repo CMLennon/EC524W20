@@ -299,7 +299,10 @@ real_lazzo = lazzo_mod %&gt;%
 ```r
 #...and update our workflow accordingly
 my_big_tuna %&lt;&gt;% update_model(real_lazzo)
-parsnip::fit(my_big_tuna, data = heart_data_tr) %&gt;% predict(heart_data_tr) %&gt;% rmse(estimate = .[[1]], truth = heart_data_tr$heart_disease)
+parsnip::fit(my_big_tuna, data = heart_data_tr) %&gt;% 
+  predict(heart_data_tr) %&gt;% 
+  rmse(estimate = .[[1]], 
+       truth = heart_data_tr$heart_disease)
 ```
 
 <table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 32.2222222222222%; margin-left: 0%; margin-right: auto;  ">
@@ -424,7 +427,8 @@ We can change or add roles (variables can have multiple) by either `update_role`
 ```r
 hd_recipe %&lt;&gt;% 
   update_role(id, new_role = 'id_variables') %&gt;% 
-  add_role(sex, exercise_angina, high_sugar, chest_pain, slope, new_role = 'sneaky_dummies')
+  add_role(sex, exercise_angina, high_sugar, chest_pain, 
+           slope, vessels, thalium_scan, ecg, new_role = 'sneaky_dummies')
 ```
 
 ---
@@ -441,11 +445,6 @@ Ok, this might not seem useful to you... .hi[but just wait.] We are essentially 
 
 ---
 # Recipes
-
-
-```r
-knitr::include_graphics('images/selectors.png')
-```
 
 &lt;img src="images/selectors.png" width="80%" style="display: block; margin: auto;" /&gt;
 
@@ -466,7 +465,8 @@ Let's see these in action
  
 
 ```r
-hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor)
+hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'),
+                              -all_outcomes(), fn = as.factor)
 ```
 
 ---
@@ -479,7 +479,8 @@ hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(),
  
 
 ```r
-hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor) %&gt;%
+hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), 
+                              fn = as.factor) %&gt;%
   step_center(all_predictors(), 
                            -all_nominal()) 
 ```
@@ -493,12 +494,12 @@ hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(),
  
 
 ```r
-hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor) %&gt;%
+hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies')
+                              , fn = as.factor) %&gt;%
   step_center(all_predictors(), 
                            -all_nominal())  %&gt;% 
   step_scale(all_predictors(), -all_nominal()) %&gt;%
-  step_nzv(all_predictors()) %&gt;%
-  step_mutate(heart_disease = as.factor(heart_disease))
+  step_nzv(all_predictors()) %&gt;% step_mutate_at(all_outcomes(), fn = as.factor)
 ```
 
 ---
@@ -552,49 +553,63 @@ Why do we need to train a preprocessing step, you might ask?
 ---
 # Recipes
 
-This uses the .hi[bake] functionality of recipes. 
-
---
-
-By .hi-blue[prepping] the recipe, we now have a set of directions with numeric transformations that can be generalized out of sample.
-
---
-
 
 ```r
-heart_data_ts$heart_disease = -1
-bake(prepped_recipe, new_data = heart_data_ts) %&gt;% 
-  head(2) %&gt;%
-  select(age:ecg)
+heart_data_ts$heart_disease = -2
+bake(prepped_recipe, new_data = heart_data_ts) %&gt;% head(2)
 ```
 
-<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 80%; margin-left: 0%; margin-right: auto;  ">
-<col><col><col><col><col><col><col><tr>
-<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">age</td>
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 100%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><col><col><col><col><col><col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">id</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">age</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">sex</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">chest_pain</td>
 <td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">resting_bp</td>
 <td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">cholestoral</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">high_sugar</td>
-<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">ecg</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">ecg</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">max_rate</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">exercise_angina</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">st_depression</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">slope</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">vessels</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">thalium_scan</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">heart_disease</td>
 </tr>
 <tr>
-<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">-1.26</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">179</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">-1.26</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">3</td>
 <td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">-0.111</td>
 <td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1.35&nbsp;</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0</td>
-<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">-1.03</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.556</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.776</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">3</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);"></td>
 </tr>
 <tr>
-<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">-1.15</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">14</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">-1.15</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">1</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">2</td>
 <td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">-0.672</td>
 <td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.297</td>
 <td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0</td>
-<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">-1.03</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">1.01&nbsp;</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">-0.882</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">1</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">7</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;"></td>
 </tr>
 </table>
 
@@ -634,18 +649,99 @@ my_big_tuna = workflow() %&gt;%
 ---
 #Tidymodel process
 
-Now, we can just fit this data here!
+Now, we can just fit this data here! We can use 'Juice' to get our heart disease variable, and then put both our predictions and passed values in a ROC curve.
 
 
 ```r
-truevals = (prepped_recipe %&gt;% juice())$heart_disease
+#Classification tree?
+truths = as.factor(heart_data_tr$heart_disease)
 
 hdpred = parsnip::fit(my_big_tuna,
-      data = heart_data_tr) %&gt;% predict(new_data = heart_data_tr, type = 'prob') %&gt;% 
-  mutate(true_pred = truevals,
+      data = heart_data_tr) %&gt;% 
+  predict(new_data = heart_data_tr, 'prob') %&gt;% 
+  mutate(true_pred = truths,
          pred = as.numeric(.pred_1))
 ```
-i;gbuj,j
+---
+#Tidymodel process
+
+
+```r
+roc_curve(hdpred, truth = true_pred, estimate = pred) %&gt;% 
+  autoplot()
+```
+
+&lt;img src="004-slides_files/figure-html/unnamed-chunk-20-1.svg" width="80%" style="display: block; margin: auto;" /&gt;
+
+
+---
+#Tidymodel process
+
+With all this in place though, where's the upside?
+
+--
+
+.hi[We can swap models, recipes, formulas, dataset and steps without rewriting code]
+
+
+
+```r
+#Random Forest?
+rfmod = rand_forest() %&gt;% set_engine('ranger') %&gt;% 
+  set_args(min_n = 8, trees = 10000, mtry = 6) %&gt;% 
+  set_mode('classification')
+
+my_big_tuna  %&lt;&gt;% update_model(rfmod)
+```
+
+---
+#Tidymodel process
+
+Now just refit/repredict and...
+
+--
+
+
+```r
+hdpred = parsnip::fit(my_big_tuna,
+      data = heart_data_tr) %&gt;% predict(new_data = heart_data_tr, 'prob') %&gt;% 
+  mutate(true_pred = (prepped_recipe %&gt;% juice())$heart_disease %&gt;% 
+           as.numeric() %&gt;% as.factor(),
+         pred = as.numeric(.pred_1))
+```
+---
+#Tidymodel process
+
+
+```r
+roc_curve(hdpred, truth = true_pred, estimate = pred) %&gt;% autoplot()
+```
+
+&lt;img src="004-slides_files/figure-html/unnamed-chunk-23-1.svg" width="80%" style="display: block; margin: auto;" /&gt;
+
+---
+#Tidymodel process
+
+But we're missing one key ingredient... 
+--
+.hi-orange[cross validation]
+
+--
+
+ - You've likely noticed that everything I've done so far has been only .hi-blue[in sample]
+ 
+--
+ 
+ - That's because to do cross validation, we need to know how to create splits
+
+ - that's where `rsample` comes in.
+ 
+---
+class: inverse, middle
+# Cross Validation in tidymodels 
+
+---
+# Cross Validation in tidymodels
     </textarea>
 <style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>

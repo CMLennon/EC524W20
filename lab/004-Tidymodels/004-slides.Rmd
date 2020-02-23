@@ -303,7 +303,10 @@ real_lazzo = lazzo_mod %>%
 ```{r}
 #...and update our workflow accordingly
 my_big_tuna %<>% update_model(real_lazzo)
-parsnip::fit(my_big_tuna, data = heart_data_tr) %>% predict(heart_data_tr) %>% rmse(estimate = .[[1]], truth = heart_data_tr$heart_disease)
+parsnip::fit(my_big_tuna, data = heart_data_tr) %>% 
+  predict(heart_data_tr) %>% 
+  rmse(estimate = .[[1]], 
+       truth = heart_data_tr$heart_disease)
 ```
 
 --
@@ -386,7 +389,8 @@ We can change or add roles (variables can have multiple) by either `update_role`
 ```{r, eval = F}
 hd_recipe %<>% 
   update_role(id, new_role = 'id_variables') %>% 
-  add_role(sex, exercise_angina, high_sugar, chest_pain, slope, new_role = 'sneaky_dummies')
+  add_role(sex, exercise_angina, high_sugar, chest_pain, 
+           slope, vessels, thalium_scan, ecg, new_role = 'sneaky_dummies')
 ```
 
 ---
@@ -404,7 +408,7 @@ Ok, this might not seem useful to you... .hi[but just wait.] We are essentially 
 ---
 # Recipes
 
-```{r, selectors, out.width = '80%'}
+```{r, selectors, echo = F, out.width = '80%'}
 knitr::include_graphics('images/selectors.png')
 ```
 
@@ -424,7 +428,8 @@ Let's see these in action
  - We want to build our preprocessing as if we were writing a recipe for someone else to replicate, using a series of steps.
  
 ```{r, step 1}
-hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor)
+hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies'),
+                              -all_outcomes(), fn = as.factor)
 ```
 
 ---
@@ -439,12 +444,14 @@ hd_recipe = recipe(heart_disease ~ ., data = heart_data_tr)
 
 hd_recipe %<>% 
   update_role(id, new_role = 'id_variables') %>% 
-  add_role(sex, high_sugar, exercise_angina, chest_pain, vessels, slope, new_role = 'sneaky_dummies')
+  add_role(sex, exercise_angina, high_sugar, chest_pain, 
+           slope, vessels, thalium_scan, ecg, new_role = 'sneaky_dummies')
 ```
 
  
 ```{r, step 1.2}
-hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor) %>%
+hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies'), 
+                              fn = as.factor) %>%
   step_center(all_predictors(), 
                            -all_nominal()) 
 ```
@@ -460,16 +467,17 @@ hd_recipe = recipe(heart_disease ~ ., data = heart_data_tr)
 
 hd_recipe %<>% 
   update_role(id, new_role = 'id_variables') %>% 
-  add_role(heart_disease, sex, high_sugar, exercise_angina, chest_pain, vessels, slope, new_role = 'sneaky_dummies')
+  add_role(sex, exercise_angina, high_sugar, chest_pain, 
+           slope, vessels, thalium_scan, ecg, heart_disease, new_role = 'sneaky_dummies')
 ```
  
 ```{r, step 1.3}
-hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies'), -all_outcomes(), fn = as.factor) %>%
+hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies')
+                              , fn = as.factor) %>%
   step_center(all_predictors(), 
                            -all_nominal())  %>% 
   step_scale(all_predictors(), -all_nominal()) %>%
-  step_nzv(all_predictors()) %>%
-  step_mutate(heart_disease = as.factor(heart_disease))
+  step_nzv(all_predictors()) %>% step_mutate_at(all_outcomes(), fn = as.factor)
 ```
 
 ---
@@ -521,19 +529,9 @@ Why do we need to train a preprocessing step, you might ask?
 ---
 # Recipes
 
-This uses the .hi[bake] functionality of recipes. 
-
---
-
-By .hi-blue[prepping] the recipe, we now have a set of directions with numeric transformations that can be generalized out of sample.
-
---
-
 ```{r}
-heart_data_ts$heart_disease = -1
-bake(prepped_recipe, new_data = heart_data_ts) %>% 
-  head(2) %>%
-  select(age:ecg)
+heart_data_ts$heart_disease = -2
+bake(prepped_recipe, new_data = heart_data_ts) %>% head(2)
 ```
 
 ---
@@ -558,7 +556,7 @@ Now, if we're just interested in the training data, we can actually get the tran
 
 Just like with our model object, we can pass our recipe object to the workflow directly, in place of the formula we had before.
 
-```{r, ctree}
+```{r}
 #Classification tree?
 ctree_mod = decision_tree() %>% set_engine('rpart') %>% 
   set_args(min_n = 8) %>% 
@@ -566,18 +564,95 @@ ctree_mod = decision_tree() %>% set_engine('rpart') %>%
 
 my_big_tuna = workflow() %>% 
   add_recipe(hd_recipe) %>% add_model(ctree_mod)
+
 ```
 ---
 #Tidymodel process
 
-Now, we can just fit this data here!
+Now, we can just fit this data here! We can use 'Juice' to get our heart disease variable, and then put both our predictions and passed values in a ROC curve.
 
 ```{r}
-truevals = (prepped_recipe %>% juice())$heart_disease
+#Classification tree?
+truths = as.factor(heart_data_tr$heart_disease)
 
 hdpred = parsnip::fit(my_big_tuna,
-      data = heart_data_tr) %>% predict(new_data = heart_data_tr, type = 'prob') %>% 
-  mutate(true_pred = truevals,
+      data = heart_data_tr) %>% 
+  predict(new_data = heart_data_tr, 'prob') %>% 
+  mutate(true_pred = truths,
          pred = as.numeric(.pred_1))
 ```
-i;gbuj,j
+---
+#Tidymodel process
+
+```{r, out.width= '80%'}
+roc_curve(hdpred, truth = true_pred, estimate = pred) %>% 
+  autoplot()
+```
+
+
+---
+#Tidymodel process
+
+With all this in place though, where's the upside?
+
+--
+
+.hi[We can swap models, recipes, formulas, dataset and steps without rewriting code]
+
+
+```{r}
+#Random Forest?
+rfmod = rand_forest() %>% set_engine('ranger') %>% 
+  set_args(min_n = 8, trees = 10000, mtry = 6) %>% 
+  set_mode('classification')
+
+my_big_tuna  %<>% update_model(rfmod)
+```
+
+---
+#Tidymodel process
+
+Now just refit/repredict and...
+
+--
+
+```{r}
+hdpred = parsnip::fit(my_big_tuna,
+      data = heart_data_tr) %>% predict(new_data = heart_data_tr, 'prob') %>% 
+  mutate(true_pred = (prepped_recipe %>% juice())$heart_disease %>% 
+           as.numeric() %>% as.factor(),
+         pred = as.numeric(.pred_1))
+```
+---
+#Tidymodel process
+
+```{r, out.width= '80%'}
+roc_curve(hdpred, truth = true_pred, estimate = pred) %>% autoplot()
+```
+
+---
+#Tidymodel process
+
+But we're missing one key ingredient... 
+--
+.hi-orange[cross validation]
+
+--
+
+ - You've likely noticed that everything I've done so far has been only .hi-blue[in sample]
+ 
+--
+ 
+ - That's because to do cross validation, we need to know how to create splits
+
+ - that's where `rsample` comes in.
+ 
+---
+class: inverse, middle
+# Cross Validation in tidymodels 
+
+---
+# Cross Validation in tidymodels
+
+
+
