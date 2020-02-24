@@ -651,8 +651,4 @@ But we're missing one key ingredient...
 class: inverse, middle
 # Cross Validation in tidymodels 
 
----
-# Cross Validation in tidymodels
-
-
 
