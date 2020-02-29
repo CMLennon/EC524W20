@@ -496,8 +496,7 @@ hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'),
  
 
 ```r
-hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies')
-                              , fn = as.factor) %&gt;%
+hd_recipe %&lt;&gt;% step_mutate_at(has_role('sneaky_dummies'), fn = as.factor) %&gt;%
   step_center(all_predictors(), 
                            -all_nominal())  %&gt;% 
   step_scale(all_predictors(), -all_nominal()) %&gt;%
@@ -740,7 +739,784 @@ But we're missing one key ingredient...
  
 ---
 class: inverse, middle
-# Cross Validation in tidymodels
+# Cross Validation in tidymodels 
+---
+
+---
+class: inverse, middle
+# Pop Quiz! 
+---
+# Cross Validation in Tidymodels
+
+As you've learned already, .hi-orange[cross validation] is critical for good .hi-orange[oos estimates]
+
+--
+
+As you proabably have also learned, doing cross validation by hand can be .hi[difficult].
+
+--
+
+
+```r
+splitcount = 30
+splits = list()
+split = rep_sample_n(heart_data_tr, size =
+                       nrow(heart_data_tr)/splitcount, 
+                     reps = splitcount)
+
+for(i in 1:splitcount){
+  splits[[i]] = filter(split, 
+                       replicate == i)
+}
+```
+
+---
+# Cross Validation in Tidymodels
+
+```r
+forml = heart_disease ~ .
+
+atrtestfunc = function(split){
+  splitlist = setdiff(splits, split)
+  mod = lm(data = split, formula = forml)
+  pred = predict(mod, newdata = 
+                   bind_rows(splitlist))
+  return(pred)
+}
+
+list_of_preds = lapply(splits, FUN = atrtestfunc)
+```
+
+--
+
+And now we need to provide a grid to search over... there must be a better way...
+
+---
+#Cross Validation in Tidymodels
+
+Just like in `caret`, there is a set of functions that will help us cross validate.
+
+--
+
+This comes from the package .hi[rsample]
+
+
+```r
+knitr::include_graphics('images/rsample.jpeg')
+```
+
+---
+#Cross Validation in Tidymodels
+
+This feeds into the `tidymodels` process we've already begun to flesh out, and let's us do our cross validation for prediction however we prefer.
+
+--
+
+Another advantage of rsample:
+
+--
+
+ - cross validation is .hi[memory intensive], which rsample avoids by creating objects called .hi-blue[rsplits].
+ 
+--
+
+- however, you don't need to work with these objects directly, because tidymodels will do that for you.
+
+---
+#Cross Validation in Tidymodels
+
+Lets use our recipe and a .hi-orange[gradient boosted tree] from above to try and predict heart disease.
+
+--
+
+- A .hi-orange[gradient boosted tree] essentially is a .hi-blue[decision tree] where splits further down the branches are dictated by the residuals in the leaf.
+
+--
+
+
+```r
+#Boosted tree?
+gbtree_mod = boost_tree() %&gt;% set_engine('xgboost') %&gt;% 
+  set_args(min_n = 8) %&gt;% 
+  set_mode('classification')
+
+my_big_tuna = workflow() %&gt;% 
+  add_recipe(hd_recipe) %&gt;% add_model(gbtree_mod)
+```
+
+---
+#Cross Validation in Tidymodels
+
+But now, we need to create our splits
+
+
+```r
+cv_folds = vfold_cv(heart_data_tr, v = 10, 
+                    strata = heart_disease)
+```
+
+--
+
+We also have access to all of the other methods of cross validation you have with caret, for instance, .hi[monte carlo]
+
+
+```r
+mch = mc_cv(heart_data_tr, times = 25,
+                  strata = heart_disease)
+```
+
+
+You can see these are a new object type, which would make them a pain to learn, but .hi[we don't have to]
+
+---
+#Cross Validation in Tidymodels
+
+Instead, we can use the `fit_resamples` function, and then use a new function to collect our results
+
+
+```r
+fit_resamples(my_big_tuna,
+              resamples = cv_folds) %&gt;% collect_metrics()
+```
+--
+Unfortunately, .hi[this won't work.]
+
+--
+
+This is because XGboost needs dummy variables rather than factors. Luckily, we were using tidymodels.
+
+--
+
+.hi[Pop-quiz:] How do we add a new step to our `recipe`?
+
+---
+#Cross Validation in Tidymodels
+
+
+```r
+xgrec = hd_recipe %&gt;% step_dummy(all_nominal(), -all_outcomes())
+
+my_big_tuna_xg = my_big_tuna %&gt;% update_recipe(xgrec) %&gt;% update_model(gbtree_mod) 
+```
+
+--
+
+
+```r
+fit_resamples(my_big_tuna_xg,
+              resamples = cv_folds) %&gt;% collect_metrics()
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 56.6666666666667%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.metric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimator</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mean</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">n</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">std_err</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">accuracy</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.79&nbsp;</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0155</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">roc_auc</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.881</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.0157</td>
+</tr>
+</table>
+
+
+---
+# Crossvalidation in Tidymodels
+
+Now, we have all the tools to compare out of sample performance across multiple models.
+
+
+
+
+
+
+```r
+model_rand_forest = rand_forest() %&gt;% 
+  set_engine('ranger') %&gt;% 
+  set_args(trees = 10000, min_n = 5, mtry = 4) %&gt;%    set_mode('classification')
+```
+
+
+```r
+my_big_tuna_forest = my_big_tuna %&gt;% 
+  update_model(model_rand_forest)
+
+fit_resamples(my_big_tuna_xg,
+              resamples = cv_folds) %&gt;% collect_metrics()
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 56.6666666666667%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.metric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimator</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mean</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">n</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">std_err</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">accuracy</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.79&nbsp;</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0155</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">roc_auc</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.881</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.0157</td>
+</tr>
+</table>
+
+
+---
+
+
+```r
+fit_resamples(my_big_tuna_forest,
+              resamples = cv_folds) %&gt;% collect_metrics()
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 56.6666666666667%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.metric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimator</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mean</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">n</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">std_err</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">accuracy</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.824</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.02&nbsp;&nbsp;</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">roc_auc</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.892</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.0163</td>
+</tr>
+</table>
+
+
+---
+#Crossvalidation in Tidymodels
+
+.hi[Boosted Trees]
+&lt;img src="004-slides_files/figure-html/unnamed-chunk-36-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+#Crossvalidation in Tidymodels
+
+.hi[Random Forest]
+
+&lt;img src="004-slides_files/figure-html/unnamed-chunk-37-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune and yardstick
+
+`tune()` and `yardstick` work in almost perfect tandem to allow us to cross-validate models using whatever metrics we may want.
+
+--
+
+This adds functionality to our `caret()` tuneGrid parameter by allowing us to not only tune our models, but also our recipe/data cleaning process.
+
+--
+
+It also lets us choose HOW we want to define .hi[best] in terms of our model. Area under the curve for ROC? 
+--
+We have it.
+
+--
+
+RMSE?
+--
+We have it.
+
+Specificity?
+
+-You get the idea
+
+Let's see how we can "tune" our cleaning process
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for recipes
+
+.hi-orange[Ok.]
+--
+I'm going to do something a little risky. Bear with me.
+
+
+- How mamy of you know what PCA is?
+
+--
+
+- PCA stands for .hi-blue[Principal Component Analysis], and without going into exactly how it works...
+--
+that would require me explain how eigenvectors and eigenvalues work. I'd really rather not...
+
+--
+
+- So, informally, PCA breaks down a group of information and transforms data into consecutive 'directions of highest variation.'
+
+--
+
+- In practice, this allows us to turn our existing variables into a set of fewer variables that summarize the variation from some larger group.
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for recipes
+
+First, we are going to add a step that will collapse our numeric data into fewer variables that summarize our existing data.
+
+
+```r
+pca_rec = hd_recipe %&gt;% step_pca(all_numeric(), num_comp = tune())
+
+big_tuna_pca = my_big_tuna_forest %&gt;% update_recipe(pca_rec)
+```
+
+Like in `caret`, we need to create a grid to search over.
+
+--
+
+We'll be searching over `num_comp` which is the number of directions we want to summarize our data by. Let's look at 1-9.
+
+--
+
+The best part is this grid will search over both your model and your recipe. For now, let's just do the recipe.
+
+
+```r
+grd = expand_grid(num_comp = 1:9)
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for recipes
+
+Now that we have a grid, we can take our grid, search over it for the optimal combination of hyperparameters, and get some results.
+
+--
+
+We do this using the `tune_grid` function of the `tune` package. This lets us choose a metric to define how we want to select our best tune, and also whether we want to .hi-orange[maximize] or .hi-blue[minimize] our value
+
+
+```r
+pca_results = big_tuna_pca %&gt;% tune_grid(resamples = cv_folds, 
+                                         grid = grd)
+
+pca_results %&gt;% show_best(metric = "roc_auc", maximize = T, 3)
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 56.6666666666667%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">num_comp</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.metric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimator</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mean</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">n</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">std_err</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">5</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">roc_auc</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.888</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0164</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">4</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">roc_auc</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt;">0.887</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.0161</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">3</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">roc_auc</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.883</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0139</td>
+</tr>
+</table>
+
+
+---
+#Crossvalidation in Tidymodels
+
+.hi[Neat!] We added a tiny bit of performance to our model. Where we really will get gains though is by tuning our other hyperparameters.
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+So, now we want to edit our hyper-parameters. We already set these in prior lectures, but let's remind ourselves of what parameters we can use for tree ensemble models.
+
+--
+
+ - mtry: number of variables to be candidates for each split choice
+ - trees: number of trees
+ - min_n: minimum data in each end-point
+ - tree_depth: max number of splits
+ -  learn_rate = learning rate for each iteration .hi((boosting))
+ - loss_reduction = the reduction in the loss function to perform a further split
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+The difference is we need to tell tune which parameters live in which functions, because there are several 'models' that can be tuned. 
+
+- We do that by passing `tune()` in the arguments
+
+--
+
+```r
+model_rand_forest = rand_forest() %&gt;% 
+  set_engine('ranger') %&gt;% 
+  set_args(trees = 3000, min_n = tune(), mtry = tune()) %&gt;%    set_mode('classification')
+```
+
+--
+
+```r
+full_grd = expand_grid(mtry = 1:4,
+                       min_n = 9:15
+                       )
+```
+
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+Now, we can do the exact same thing as before.
+
+
+
+```r
+big_tuna_full = my_big_tuna %&gt;% update_model(model_rand_forest) %&gt;% update_recipe(hd_recipe)
+
+results = big_tuna_full %&gt;% tune_grid(resamples = cv_folds,
+                                      metrics = metric_set(roc_auc, f_meas),
+                                         grid = full_grd)
+
+results %&gt;% show_best(metric = "f_meas", maximize = T, 3)
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 57.7777777777778%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mtry</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">min_n</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.metric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimator</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mean</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">n</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">std_err</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">9</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">f_meas</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.855</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0175</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">1</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">10</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">f_meas</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt;">0.855</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.0175</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">12</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">f_meas</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.85&nbsp;</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0178</td>
+</tr>
+</table>
+
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+And, for `xgboost`
+
+```r
+gbtree_mod = boost_tree() %&gt;% set_engine('xgboost') %&gt;% 
+  set_args(learn_rate = tune(), tree_depth = tune(), sample_size = .6) %&gt;% 
+  set_mode('classification')
+
+lrn = c(.15, .25, .3, .4, .45, .5)
+
+full_grd = expand_grid(
+                       learn_rate = lrn,
+                       tree_depth = 2:7
+                       )
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+And, for `xgboost`...
+
+--
+
+
+```r
+results_xg = big_tuna_full %&gt;% 
+  update_model(gbtree_mod) %&gt;% 
+  update_recipe(hd_recipe %&gt;% 
+                  step_dummy(all_nominal(), -all_outcomes())) %&gt;%
+  tune_grid(resamples = cv_folds, 
+            metrics = metric_set(roc_auc, f_meas),  
+                                         grid = full_grd)
+
+results_xg %&gt;% show_best(metric = "f_meas", maximize = T, 3)
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 60%; margin-left: 0%; margin-right: auto;  ">
+<col><col><col><col><col><col><col><tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">tree_depth</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">learn_rate</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.metric</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">.estimator</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mean</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">n</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">std_err</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">2</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.3&nbsp;</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">f_meas</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.815</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0202</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt; padding: 4pt 4pt 4pt 4pt;">2</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">0.25</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">f_meas</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; padding: 4pt 4pt 4pt 4pt;">0.811</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; padding: 4pt 4pt 4pt 4pt;">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt; padding: 4pt 4pt 4pt 4pt;">0.0214</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">7</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.15</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">f_meas</td>
+<td style="vertical-align: top; text-align: left; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">binary</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.81&nbsp;</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">10</td>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.0101</td>
+</tr>
+</table>
+
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+We can also get the .hi[best] model directly by using 
+
+### select_best()
+
+
+```r
+best_xg = results_xg %&gt;% select_best(metric = 'f_meas')
+best_xg
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 20%; margin-left: 0%; margin-right: auto;  ">
+<col><col><tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">tree_depth</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">learn_rate</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">2</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">0.3</td>
+</tr>
+</table>
+
+
+```r
+best_rf = results %&gt;% select_best(metric = 'f_meas')
+best_rf
+```
+
+<table class="huxtable" style="border-collapse: collapse; margin-bottom: 2em; margin-top: 2em; width: 20%; margin-left: 0%; margin-right: auto;  ">
+<col><col><tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">mtry</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; font-weight: bold;">min_n</td>
+</tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">1</td>
+<td style="vertical-align: top; text-align: right; white-space: nowrap; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt; padding: 4pt 4pt 4pt 4pt; background-color: rgb(242, 242, 242);">9</td>
+</tr>
+</table>
+
+
+---
+#Crossvalidation in Tidymodels
+
+## Finalizing workflow
+
+We're almost there!
+--
+!!
+--
+!!
+
+All we need to do now is fix our selected hyperparameters in place.
+
+--
+
+.hi-orange[of course], we could just read them from our table and update the model directly, but that would take longer in compute time and work time.
+
+--
+
+Instead, we will use the last piece of .hi-blue[workflow] to finalize it, using...
+--
+`finalize_workflow`
+
+Which does exactly what you think it will.
+
+---
+#Crossvalidation in Tidymodels
+
+## Finalizing workflow
+
+We can finalize our workflow by passing the .hi[best] objects defined from a few slides ago to the function finalize_workflow()
+
+
+```r
+final_tuna_xg = big_tuna_full %&gt;% 
+  update_model(gbtree_mod) %&gt;% 
+  update_recipe(hd_recipe %&gt;% 
+                  step_dummy(all_nominal(), 
+                             -all_outcomes()))  %&gt;%
+  finalize_workflow(best_xg)
+```
+
+--
+
+
+```r
+final_tuna_rf = my_big_tuna %&gt;% 
+  update_model(model_rand_forest) %&gt;% 
+  update_recipe(hd_recipe) %&gt;% 
+  finalize_workflow(best_rf)
+```
+
+---
+class: inverse, middle
+# The test set
+---
+#Testing
+
+Ok. Now we're ready for the .hi-orange[big finale.]
+
+--
+
+Let's prep and get our data ready for submission on kaggle
+
+
+```r
+heart_data_ts$heart_disease = -2
+
+finfitrf = final_tuna_rf %&gt;% parsnip::fit(data = heart_data_tr)
+finfitxg = final_tuna_xg %&gt;% parsnip::fit(data = heart_data_tr)
+
+out = data.frame(id = heart_data_ts$id, heart_disease = predict(finfitrf, new_data = heart_data_ts, 'prob'), predict(finfitxg, new_data = heart_data_ts, 'prob'))
+```
+
+wait wait... what's this? Why am I doing multiple predictions?
+--
+We've got one model left for us. This is what's called a .hi[stacked regression] and it works by running a regression on other predicted values of y to try and predict y.
+
+--
+
+These types of models .hi[frequently] win kaggle competitions.
+
+--
+
+We're going to take our new predictions, and produce a third prediction based on them
+
+---
+# Grouped models
+
+
+```r
+ins = data.frame(id = heart_data_tr$id, heart_disease = predict(finfitrf, new_data = heart_data_tr, 'prob'), predict(finfitxg, new_data = heart_data_tr, 'prob'), truth = heart_data_tr$heart_disease %&gt;% as.factor())
+
+final_logit = logistic_reg() %&gt;% set_engine('glm')
+
+recipefin = recipe(truth ~ heart_disease..pred_1 + .pred_1, data = ins)
+
+final_logit_wf = workflow() %&gt;% add_recipe(recipefin) %&gt;% add_model(final_logit)
+
+fitfinlm = parsnip::fit(final_logit_wf, data = ins)
+```
+
+---
+#Grouped models 2
+
+
+```r
+submit = data.frame(id = heart_data_ts$id,
+                    predict(fitfinlm, new_data = out))
+
+names(submit) = c('id','heart_disease')
+```
+
+
+
+---
+# Submission
+
+&lt;img src="images/kag_private_leaderboard.png" style="display: block; margin: auto;" /&gt;
     </textarea>
 <style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>

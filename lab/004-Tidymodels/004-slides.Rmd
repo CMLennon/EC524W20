@@ -363,7 +363,9 @@ First though - here's an adorable graphic.
 knitr::include_graphics('images/socute.png')
 ```
 
-
+.footnote[
+.orange[*] Source: https://education.rstudio.com/blog/2020/02/conf20-intro-ml/.
+]
 ---
 #Recipe
 
