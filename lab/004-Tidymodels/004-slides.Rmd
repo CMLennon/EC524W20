@@ -474,8 +474,7 @@ hd_recipe %<>%
 ```
  
 ```{r, step 1.3}
-hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies')
-                              , fn = as.factor) %>%
+hd_recipe %<>% step_mutate_at(has_role('sneaky_dummies'), fn = as.factor) %>%
   step_center(all_predictors(), 
                            -all_nominal())  %>% 
   step_scale(all_predictors(), -all_nominal()) %>%
@@ -652,5 +651,565 @@ But we're missing one key ingredient...
 ---
 class: inverse, middle
 # Cross Validation in tidymodels 
+---
 
+---
+class: inverse, middle
+# Pop Quiz! 
+---
+# Cross Validation in Tidymodels
+
+As you've learned already, .hi-orange[cross validation] is critical for good .hi-orange[oos estimates]
+
+--
+
+As you proabably have also learned, doing cross validation by hand can be .hi[difficult].
+
+--
+
+```{r, eval = F}
+splitcount = 30
+splits = list()
+split = rep_sample_n(heart_data_tr, size =
+                       nrow(heart_data_tr)/splitcount, 
+                     reps = splitcount)
+
+for(i in 1:splitcount){
+  splits[[i]] = filter(split, 
+                       replicate == i)
+}
+```
+
+---
+# Cross Validation in Tidymodels
+```{r, eval = F}
+forml = heart_disease ~ .
+
+atrtestfunc = function(split){
+  splitlist = setdiff(splits, split)
+  mod = lm(data = split, formula = forml)
+  pred = predict(mod, newdata = 
+                   bind_rows(splitlist))
+  return(pred)
+}
+
+list_of_preds = lapply(splits, FUN = atrtestfunc)
+```
+
+--
+
+And now we need to provide a grid to search over... there must be a better way...
+
+---
+#Cross Validation in Tidymodels
+
+Just like in `caret`, there is a set of functions that will help us cross validate.
+
+--
+
+This comes from the package .hi[rsample]
+
+```{r, eval = F}
+knitr::include_graphics('images/rsample.jpeg')
+```
+
+---
+#Cross Validation in Tidymodels
+
+This feeds into the `tidymodels` process we've already begun to flesh out, and let's us do our cross validation for prediction however we prefer.
+
+--
+
+Another advantage of rsample:
+
+--
+
+ - cross validation is .hi[memory intensive], which rsample avoids by creating objects called .hi-blue[rsplits].
+ 
+--
+
+- however, you don't need to work with these objects directly, because tidymodels will do that for you.
+
+---
+#Cross Validation in Tidymodels
+
+Lets use our recipe and a .hi-orange[gradient boosted tree] from above to try and predict heart disease.
+
+--
+
+- A .hi-orange[gradient boosted tree] essentially is a .hi-blue[decision tree] where splits further down the branches are dictated by the residuals in the leaf.
+
+--
+
+```{r, rsample}
+#Boosted tree?
+gbtree_mod = boost_tree() %>% set_engine('xgboost') %>% 
+  set_args(min_n = 8) %>% 
+  set_mode('classification')
+
+my_big_tuna = workflow() %>% 
+  add_recipe(hd_recipe) %>% add_model(gbtree_mod)
+```
+
+---
+#Cross Validation in Tidymodels
+
+But now, we need to create our splits
+
+```{r}
+cv_folds = vfold_cv(heart_data_tr, v = 10, 
+                    strata = heart_disease)
+```
+
+--
+
+We also have access to all of the other methods of cross validation you have with caret, for instance, .hi[monte carlo]
+
+```{r}
+mch = mc_cv(heart_data_tr, times = 25,
+                  strata = heart_disease)
+```
+
+
+You can see these are a new object type, which would make them a pain to learn, but .hi[we don't have to]
+
+---
+#Cross Validation in Tidymodels
+
+Instead, we can use the `fit_resamples` function, and then use a new function to collect our results
+
+```{r, eval = F}
+fit_resamples(my_big_tuna,
+              resamples = cv_folds) %>% collect_metrics()
+```
+--
+Unfortunately, .hi[this won't work.]
+
+--
+
+This is because XGboost needs dummy variables rather than factors. Luckily, we were using tidymodels.
+
+--
+
+.hi[Pop-quiz:] How do we add a new step to our `recipe`?
+
+---
+#Cross Validation in Tidymodels
+
+```{r}
+xgrec = hd_recipe %>% step_dummy(all_nominal(), -all_outcomes())
+
+my_big_tuna_xg = my_big_tuna %>% update_recipe(xgrec) %>% update_model(gbtree_mod) 
+```
+
+--
+
+```{r}
+fit_resamples(my_big_tuna_xg,
+              resamples = cv_folds) %>% collect_metrics()
+```
+
+---
+# Crossvalidation in Tidymodels
+
+Now, we have all the tools to compare out of sample performance across multiple models.
+
+
+```{r, echo = F}
+my_big_tuna = my_big_tuna %>% update_recipe(hd_recipe)
+```
+
+
+```{r}
+model_rand_forest = rand_forest() %>% 
+  set_engine('ranger') %>% 
+  set_args(trees = 10000, min_n = 5, mtry = 4) %>%    set_mode('classification')
+```
+
+```{r}
+my_big_tuna_forest = my_big_tuna %>% 
+  update_model(model_rand_forest)
+
+fit_resamples(my_big_tuna_xg,
+              resamples = cv_folds) %>% collect_metrics()
+```
+
+---
+
+```{r}
+fit_resamples(my_big_tuna_forest,
+              resamples = cv_folds) %>% collect_metrics()
+```
+
+---
+#Crossvalidation in Tidymodels
+
+.hi[Boosted Trees]
+```{r, echo = F}
+fit_resamples(my_big_tuna_xg,
+              resamples = cv_folds, control = control_resamples(save_pred= T)) %>% collect_predictions() %>% roc_curve(truth = heart_disease, estiate = .pred_1) %>% autoplot()
+```
+
+---
+#Crossvalidation in Tidymodels
+
+.hi[Random Forest]
+
+```{r, echo = F}
+fit_resamples(my_big_tuna_forest,
+              resamples = cv_folds, control = control_resamples(save_pred= T)) %>% collect_predictions() %>% roc_curve(truth = heart_disease, estiate = .pred_1) %>% autoplot()
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune and yardstick
+
+`tune()` and `yardstick` work in almost perfect tandem to allow us to cross-validate models using whatever metrics we may want.
+
+--
+
+This adds functionality to our `caret()` tuneGrid parameter by allowing us to not only tune our models, but also our recipe/data cleaning process.
+
+--
+
+It also lets us choose HOW we want to define .hi[best] in terms of our model. Area under the curve for ROC? 
+--
+We have it.
+
+--
+
+RMSE?
+--
+We have it.
+
+Specificity?
+
+-You get the idea
+
+Let's see how we can "tune" our cleaning process
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for recipes
+
+.hi-orange[Ok.]
+--
+I'm going to do something a little risky. Bear with me.
+
+
+- How mamy of you know what PCA is?
+
+--
+
+- PCA stands for .hi-blue[Principal Component Analysis], and without going into exactly how it works...
+--
+that would require me explain how eigenvectors and eigenvalues work. I'd really rather not...
+
+--
+
+- So, informally, PCA breaks down a group of information and transforms data into consecutive 'directions of highest variation.'
+
+--
+
+- In practice, this allows us to turn our existing variables into a set of fewer variables that summarize the variation from some larger group.
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for recipes
+
+First, we are going to add a step that will collapse our numeric data into fewer variables that summarize our existing data.
+
+```{r}
+pca_rec = hd_recipe %>% step_pca(all_numeric(), num_comp = tune())
+
+big_tuna_pca = my_big_tuna_forest %>% update_recipe(pca_rec)
+```
+
+Like in `caret`, we need to create a grid to search over.
+
+--
+
+We'll be searching over `num_comp` which is the number of directions we want to summarize our data by. Let's look at 1-9.
+
+--
+
+The best part is this grid will search over both your model and your recipe. For now, let's just do the recipe.
+
+```{r}
+grd = expand_grid(num_comp = 1:9)
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for recipes
+
+Now that we have a grid, we can take our grid, search over it for the optimal combination of hyperparameters, and get some results.
+
+--
+
+We do this using the `tune_grid` function of the `tune` package. This lets us choose a metric to define how we want to select our best tune, and also whether we want to .hi-orange[maximize] or .hi-blue[minimize] our value
+
+```{r}
+pca_results = big_tuna_pca %>% tune_grid(resamples = cv_folds, 
+                                         grid = grd)
+
+pca_results %>% show_best(metric = "roc_auc", maximize = T, 3)
+```
+
+---
+#Crossvalidation in Tidymodels
+
+.hi[Neat!] We added a tiny bit of performance to our model. Where we really will get gains though is by tuning our other hyperparameters.
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+So, now we want to edit our hyper-parameters. We already set these in prior lectures, but let's remind ourselves of what parameters we can use for tree ensemble models.
+
+--
+
+ - mtry: number of variables to be candidates for each split choice
+ - trees: number of trees
+ - min_n: minimum data in each end-point
+ - tree_depth: max number of splits
+ -  learn_rate = learning rate for each iteration .hi((boosting))
+ - loss_reduction = the reduction in the loss function to perform a further split
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+The difference is we need to tell tune which parameters live in which functions, because there are several 'models' that can be tuned. 
+
+- We do that by passing `tune()` in the arguments
+
+--
+```{r}
+model_rand_forest = rand_forest() %>% 
+  set_engine('ranger') %>% 
+  set_args(trees = 1500, min_n = tune(), mtry = tune()) %>%    set_mode('classification')
+```
+
+--
+```{r}
+full_grd = expand_grid(mtry = 1:8,
+                       min_n = 8:25
+                       )
+```
+
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+Now, we can do the exact same thing as before.
+
+
+```{r}
+big_tuna_full = my_big_tuna %>% 
+  update_model(model_rand_forest) %>% 
+  update_recipe(hd_recipe %>% 
+                  step_pca(all_numeric(), num_comp = 6))
+
+results = big_tuna_full %>% tune_grid(resamples = cv_folds,
+                                      metrics = metric_set(roc_auc, f_meas),
+                                         grid = full_grd)
+
+results %>% show_best(metric = "f_meas", maximize = T, 3)
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+And, for `xgboost`
+```{r}
+gbtree_mod = boost_tree() %>% set_engine('xgboost') %>% 
+  set_args(learn_rate = tune(), tree_depth = tune()) %>% 
+  set_mode('classification')
+
+lrn = c(.15, .25, .3, .4, .45, .5)
+
+full_grd = expand_grid(
+                       learn_rate = lrn,
+                       tree_depth = 2:9
+                       )
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+And, for `xgboost`...
+
+--
+
+```{r}
+results_xg = big_tuna_full %>% 
+  update_model(gbtree_mod) %>% 
+  update_recipe(hd_recipe %>% 
+                  step_dummy(all_nominal(), -all_outcomes())) %>%
+  tune_grid(resamples = cv_folds, 
+            metrics = metric_set(roc_auc, f_meas),  
+                                         grid = full_grd)
+
+results_xg %>% show_best(metric = "f_meas", maximize = T, 3)
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Using tune for models
+
+We can also get the .hi[best] model directly by using 
+
+### select_best()
+
+```{r}
+best_xg = results_xg %>% select_best(metric = 'f_meas')
+best_xg
+
+best_rf = results %>% select_best(metric = 'f_meas')
+best_rf
+```
+
+---
+#Crossvalidation in Tidymodels
+
+## Finalizing workflow
+
+We're almost there!
+--
+!!
+--
+!!
+
+All we need to do now is fix our selected hyperparameters in place.
+
+--
+
+.hi-orange[of course], we could just read them from our table and update the model directly, but that would take longer in compute time and work time.
+
+--
+
+Instead, we will use the last piece of .hi-blue[workflow] to finalize it, using...
+--
+`finalize_workflow`
+
+Which does exactly what you think it will.
+
+---
+#Crossvalidation in Tidymodels
+
+## Finalizing workflow
+
+We can finalize our workflow by passing the .hi[best] objects defined from a few slides ago to the function finalize_workflow()
+
+```{r}
+final_tuna_xg = big_tuna_full %>% 
+  update_model(gbtree_mod) %>% 
+  update_recipe(hd_recipe %>% 
+                  step_dummy(all_nominal(), 
+                             -all_outcomes()))  %>%
+  finalize_workflow(best_xg)
+```
+
+--
+
+```{r}
+final_tuna_rf = my_big_tuna %>% 
+  update_model(model_rand_forest) %>% 
+  update_recipe(hd_recipe) %>% 
+  finalize_workflow(best_rf)
+```
+
+---
+class: inverse, middle
+# The test set
+---
+#Testing
+
+Ok. Now we're ready for the .hi-orange[big finale.]
+
+--
+
+Let's prep and get our data ready for submission on kaggle
+
+```{r}
+heart_data_ts$heart_disease = -2
+
+finfitrf = final_tuna_rf %>% 
+  parsnip::fit(data = heart_data_tr)
+finfitxg = final_tuna_xg %>% 
+  parsnip::fit(data = heart_data_tr)
+
+out = data.frame(id = heart_data_ts$id,
+                   predict(finfitrf, new_data = heart_data_ts, 'prob'),
+                 predict(finfitxg, new_data = heart_data_ts, 'prob'))
+```
+
+wait wait... what's this? Why am I doing multiple predictions?
+--
+We've got one model left for us. This is what's called a .hi[stacked regression] and it works by running a regression on other predicted values of y to try and predict y.
+
+--
+
+These types of models .hi[frequently] win kaggle competitions.
+
+--
+
+We're going to take our new predictions, and produce a third prediction based on them
+
+---
+# Grouped models
+
+```{r}
+ins = data.frame(id = heart_data_tr$id, heart_disease =
+                   predict(finfitrf, new_data = heart_data_tr, 
+                           'prob'), 
+                 predict(finfitxg, new_data = heart_data_tr, 'prob'),
+                 truth = heart_data_tr$heart_disease %>% 
+                   as.factor())
+
+final_logit = logistic_reg() %>% 
+  set_engine('glm')
+
+recipefin = recipe(truth ~ heart_disease..pred_1 + .pred_1, data = ins)
+
+final_logit_wf = workflow() %>% 
+  add_recipe(recipefin) %>% 
+  add_model(final_logit)
+
+fitfinlm = parsnip::fit(final_logit_wf, data = ins)
+```
+
+---
+#Grouped models 2
+
+```{r}
+submit = data.frame(id = heart_data_ts$id,
+                    predict(fitfinlm, new_data = out))
+
+names(submit) = c('id','heart_disease')
+```
+
+```{r, echo = F}
+write_csv(submit, '/Users/connor/Desktop/Github Projects/Econometrics/524/EC524W20/lab/004-Tidymodels/ec524-heart-disease/submission.csv')
+```
+
+---
+# Submission
+
+```{r, echo = F}
+knitr::include_graphics('images/kag_private_leaderboard.png')
+```
 
