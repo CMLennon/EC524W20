@@ -709,7 +709,7 @@ Just like in `caret`, there is a set of functions that will help us cross valida
 
 This comes from the package .hi[rsample]
 
-```{r, eval = F}
+```{r, echo = F}
 knitr::include_graphics('images/rsample.jpeg')
 ```
 
@@ -993,7 +993,8 @@ The difference is we need to tell tune which parameters live in which functions,
 ```{r}
 model_rand_forest = rand_forest() %>% 
   set_engine('ranger') %>% 
-  set_args(trees = 1500, min_n = tune(), mtry = tune()) %>%    set_mode('classification')
+  set_args(trees = 1500, min_n = tune(), mtry = tune()) %>%
+  set_mode('classification')
 ```
 
 --
@@ -1014,12 +1015,12 @@ Now, we can do the exact same thing as before.
 
 ```{r}
 big_tuna_full = my_big_tuna %>% 
-  update_model(model_rand_forest) %>% 
+  update_model(model_rand_forest) %>%
   update_recipe(hd_recipe %>% 
                   step_pca(all_numeric(), num_comp = 6))
 
 results = big_tuna_full %>% tune_grid(resamples = cv_folds,
-                                      metrics = metric_set(roc_auc, f_meas),
+                                      metrics = metric_set(roc_auc,f_meas),
                                          grid = full_grd)
 
 results %>% show_best(metric = "f_meas", maximize = T, 3)
@@ -1183,26 +1184,28 @@ ins = data.frame(id = heart_data_tr$id, heart_disease =
 final_logit = logistic_reg() %>% 
   set_engine('glm')
 
-recipefin = recipe(truth ~ heart_disease..pred_1 + .pred_1, data = ins)
+recipefin = recipe(truth ~ heart_disease..pred_1 + .pred_1, 
+                   data = ins)
 
 final_logit_wf = workflow() %>% 
   add_recipe(recipefin) %>% 
   add_model(final_logit)
 
-fitfinlm = parsnip::fit(final_logit_wf, data = ins)
+fitfinlm = parsnip::fit(final_logit_wf, 
+                        data = ins)
 ```
 
 ---
 #Grouped models 2
 
-```{r}
+```{r, eval = F}
 submit = data.frame(id = heart_data_ts$id,
                     predict(fitfinlm, new_data = out))
 
 names(submit) = c('id','heart_disease')
 ```
 
-```{r, echo = F}
+```{r, echo = F, eval = F}
 write_csv(submit, '/Users/connor/Desktop/Github Projects/Econometrics/524/EC524W20/lab/004-Tidymodels/ec524-heart-disease/submission.csv')
 ```
 
