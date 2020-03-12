@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Lab .mono[005]</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Connor Lennon" />
+    <meta name="date" content="2020-03-11" />
+    <link href="004-slides_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="004-slides_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="004-slides_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Lab .mono[005]
+## Deep Learning and You
+### Connor Lennon
+### 11 March 2020
+
+---
+
+exclude: true
+
+
+
+---
+class: inverse, middle
+# Deep Learning and Neural Nets
+
+---
+
+# Why so exciting?
+
+- Aside from having a name that sounds like it came straight out of Neuromancer, why is everyone so excited about Neural Networks?
+
+--
+
+- Imagine trying to map a complex pattern to some outcome. Maybe you're trying to recognize whether an image is a dog, or a blueberry muffin.
+
+--
+&lt;img src="images/dogmuff.jpeg" width="30%" style="display: block; margin: auto;" /&gt;
+
+
+
+---
+
+# Why so exciting?
+
+&lt;img src="images/dogmuff.jpeg" width="30%" style="display: block; margin: auto;" /&gt;
+
+ - How do we find the dog/muffin functional form? 
+--
+What kind of expert dog-ology field can we turn to in order to solve our problem? 
+
+--
+
+- However, .hi-orange[you] can recognize which is which, right?
+
+--
+
+Have you taken a course in dog-ology? 
+--
+.hi[Probably not.]
+
+---
+#Why so exciting?
+
+You've seen dogs, you've seen muffins, and somehow your brain has found an unknown way to tell the difference. What about letters/numbers?
+
+--
+
+&lt;img src="images/mnist_gen.png" width="50%" style="display: block; margin: auto;" /&gt;
+
+
+--
+
+That's what neural networks are trying to imitate - that process of taking one set of sensory inputs, and through repetition, finding patterns that map to some .hi[internal] set of labels. 
+--
+But, in order to understand neural networks, we should do a little foundational history on them.
+
+---
+name: admin
+# The building block: perceptron
+
+## Where did the first 'neural network' come from
+
+- Neural networks (in their most basic form) are actually one of the oldest (if not THE oldest) machine learning tool still in use today.
+
+--
+
+- Invented by McCulloch and Pitts in 1943.orange[*], the perceptron (the most fundamental element of a neural network) conceptually predate Alan Turing's machine. 
+
+.footnote[
+.orange[*] McCulloch, W. S. and Pitts, W. 1943. A logical calculus of the ideas immanent in nervous activity. Bulletin of Mathematical Biophysics 5:115–133..
+]
+
+--
+
+You might ask yourself, why would anyone bother with designing an algorithm that takes hours of compute time on a high-end machine .hi[TODAY] when at the time, they lacked even a rudimentary computer?
+
+--
+The intent was to build a model of a single neuron.
+
+---
+name: admin
+# The building block: perceptron
+
+In order to understand how the intuition for how a perceptron works mathematically, having a basic understanding of the .hi[biological mechanics] of a neuron is useful.
+
+--
+
+&lt;img src="images/neuron.png" width="60%" style="display: block; margin: auto;" /&gt;
+
+.footnote[
+.orange[*] Source: wikipedia. No, they didn't endorse my usage of this diagram.
+]
+
+---
+name: admin
+# The building block: perceptron
+
+In order to understand how the intuition for how a perceptron works mathematically, having a basic understanding of the .hi[biological mechanics] of a neuron is useful.
+
+
+&lt;img src="images/neuron_diagram.png" width="60%" style="display: block; margin: auto;" /&gt;
+
+.footnote[
+.orange[*] Source: wikipedia. No, they didn't endorse my usage of this diagram.
+
+.blue[*] Moar JPEG
+]
+
+---
+name: admin
+# The building block: perceptron
+
+Ok, so how do we model this process using only the mathematical tools we have available?
+
+
+--
+
+ - We need a function that takes a .hi[consistent] set of inputs and maps them efficiently to some (potentially unknown) outputs.
+
+ 
+ 
+--
+
+
+
+- Let's start by simplifying the problem, and only modeling 'activated/not activated' once some .hi-orange[threshold] of charge is reached.
+
+--
+
+
+
+---
+# Perceptron, formally
+
+.hi[Rules]
+
+1. `$$output = y \in \{0,1\}$$`
+
+2. $$inputs = x_n \in \{0,1\},\ and \ |X| = N $$
+
+3. $$Threshold\ value = \Theta $$
+
+4. `$$\sigma(X) = 1 \  if \sum_{k=1}^N x_k &gt; \Theta, \ else = 0$$`
+
+
+---
+# Perceptron, formally
+
+.hi-orange[Put another way:]
+
+--
+
+We're going to:
+
+--
+
+- take Xs (inputs), multiply each `\(x_i\)` by a weight `\(w_i\)`.hi-orange[*], and then scale that value from 0-1, using a step function where `\(\sum_i w_i = \Theta\)` 
+
+.footnote[
+.orange[*] This was a slight modification by Frank Rosenblatt who built the first computer-based perceptron
+]
+--
+&lt;img src="images/arti_neuron.png" width="60%" style="display: block; margin: auto;" /&gt;
+
+--
+Now, we're going to make a .hi[minor] change
+
+---
+# Perceptron, formally
+
+&lt;img src="images/adaline.png" width="60%" style="display: block; margin: auto;" /&gt;
+
+
+--
+
+Two things to notice:
+
+--
+
+- we now have an activation function that replaces `\(\Theta\)`.
+
+--
+
+- .hi[T?] Why is that there? That's an in-built assumption that learning takes .hi[time]. It also is critical in how we go about solving this thing.
+
+---
+# Perceptron, how do they work?
+
+- You might have wondered: how in the world do we solve this thing?
+
+--
+
+- The answer: 
+--
+.hi[we guess.] We start with some random set of weights.
+
+--
+
+- Then we update, using information from our accuracy to infer how well our weights are informing those guesses. Eventually, we'll get something meaningful
+
+--
+
+- This is why the change from the original step-wise function is so important: 
+
+--
+
+.hi[The linear activation function] buys us something that the simple step-wise function could not:
+
+--
+.hi-orange[differentiability.]
+
+--
+
+- This means we can identify some cost function and attempt to identify a method to minimize that cost function - using the derivative `\(\frac{\partial{L}}{\partial{w^t_i}}\)` to update the weights from `\(w^t_i\)` to `\(w^{t+1}_i\)`.
+
+---
+# Perceptron, how do they work?
+
+Lucky for us, we can define `\(\frac{1}{2}*SSE\)` as our loss function, and then `\(\frac{\partial{L}}{\partial{w^t_i}}\)` is fairly easy.
+
+for each training sample... in each iteration
+
+--
+
+**1.)** `\(z = w^t_0 + w^t_1x_1 \dots w^t_nx_n = (W^t)^Tx.\)` 
+
+`\(w^t_0\ \text{is a scalar (bias). You will sometimes see this as}\ b^t\)`
+
+--
+
+**2.)** `\(\phi(z^{(i)}) = \widehat{y}^{(i)}\)`
+
+--
+
+**3.)** `\(\eta = \text{learning rate}\)`
+
+--
+
+Loss function: `\(J(w_i^t) =\frac{1}{2}\sum_i(y^{(i)}-\phi(z)^{(i)})^2\)`
+
+--
+
+`\(\frac{\partial{J}}{\partial{w^t_j}} = - \sum(y^{(i)} - \phi(z)^{(i)})x^{(i)}_j\)`
+
+`\(W^{t+1} = W^t - \eta \nabla J(W^t)\)`
+
+---
+# Perceptron, how do they work?
+
+Let's see this in action:
+
+--
+&lt;center&gt;
+&lt;img src="https://i.redd.it/omhr2r7vb8i41.gif" alt="reddit perceptron", width = "60%"&gt;
+Source: Reddit
+&lt;/center&gt;
+
+---
+# Perceptron, how do they work?
+
+You'll notice that the linear 'activation function' produces a linear decision boundary.
+
+--
+
+- So what's the .hi-orange[big deal?] We could do that, and more, with SVMs.
+
+--
+
+- Unlike with SVM, perceptrons .hi-orange[improve over time.] 
+--
+Because a perceptron can hypothetically continue to improve so long as it keeps seeing any loss, the only upper limit to a perceptron's performance is how flexible the activation function is.
+
+--
+
+But there's more than that: because we're using derivatives to update the weights, we can link a bunch of neurons together and use .hi-red[the chain rule] to optimize the model weights `\(W\)` as they .hi[work together] to find the pattern that maps `\(X \to Y\)`.
+
+--
+
+Well what do you get when you glue a bunch of neurons together? 
+--
+.hi[A brain!].hi-orange[*] 
+
+
+---
+# Neural Networks
+
+By breaking down a complex mapping task into a series of steps, we can use large collections of modified perceptrons to universally approximate .hi-orange[any] functional form.
+
+--
+
+- You .hi[already] know how to do this.orange[*], you can extend the model yourself!
+
+.footnote[
+.orange[*] with a liiitle more calculus
+]
+
+--
+
+- Imagine making several perceptrons that each learn patterns in parallel that simultaneously are trying to minimize your loss function. 
+--
+These are called .hi-blue[layers]
+
+---
+#Layer Gif
+
+&lt;center&gt;
+&lt;img src="https://www.doc.ic.ac.uk/~nuric/images/neuron_to_layer.gif" alt="imperial college gif", width = "80%"&gt;
+&lt;/center&gt;
+
+Source: Imperial College
+
+---
+#Layer?
+
+&lt;center&gt;
+&lt;img src="https://www.doc.ic.ac.uk/~nuric/images/neuron_to_layer.gif" alt="imperial college gif", width = "30%"&gt;
+&lt;/center&gt;
+
+.hi[Layer] seems to imply we could have multiple sets of perceptrons?
+
+--
+
+- .hi-orange[We can!]
+
+--
+
+All we do is make the `\(y_0,\ y_1,\ y_2\)` feed into a .hi[new] set of perceptrons and have those new perceptrons find the .hi-blue[patterns] in the output of our old ones.
+
+--
+
+that makes the output a little more complex, because now `\(\widehat{y}\)` is equal to `\(\sigma_2(\sigma_1(X))\)`
+
+--
+
+Where `\(\sigma_i()\)` is the perceptron weighting and activation function for layer .hi[i]
+
+---
+#Visualizing a Neural Network
+
+&lt;img src="images/neural_net_diagram.png" width="80%" style="display: block; margin: auto;" /&gt;
+
+---
+# Backpropagation
+
+.hi-orange[How] do we update our weights using this new function? The main difference is that we need a way of creating an .hi[error] for EVERY layer. This requires...
+
+--
+
+ - .hi-red[the chain rule] (the scariest of rules)
+ 
+`$$F'(g(x)) = f'(g(x))g'(x)$$`
+ 
+--
+
+For the output layer, we can define our error `\((\delta^L_j)\)` by
+
+`$$\delta^L_j = \frac{\partial{C}}{\partial{a^L_j}}\sigma'(z^L_j)$$`
+
+--
+
+We can compute everything in here
+
+---
+#Backpropagation
+
+`$$\delta^L_j = \frac{\partial{C}}{\partial{a^L_j}}\sigma'(z^L_j)$$`
+
+`\(\frac{\partial{C}}{\partial{a^L_j}} = (a^L_j - y_j)\)` (for .hi[our] cost function)
+
+--
+
+we already have `\(z^L_j\)`, and plugging it into `\(\sigma'\)` is not difficult. The vector form of this is...
+
+`\(\delta^L = (a^L - y) \circ \sigma'(z^L)\)`
+
+Which we can also compute.
+---
+#Backpropagation
+
+Now all that's left is to find the derivatives for the .hi[other layer errors] - however, those are going to be functions of the output error- let's look at some arbitrary layer `\(l \in \{1,\dots, L\}\)` where `\(l\)` is the layer before `\(l + 1\)`
+
+`$$\delta^l = ((w^{l+1})^T\delta^{l+1}) \circ \sigma'(z^l)$$`
+
+Where `\(w^{l+1} \equiv \text{weight matrix for layer }l+1\)`  
+
+--
+
+Now, we can use what we found to calculate `\(\delta^L\)`, which can be plugged in to find `\(\delta^{L-1}\)` and so on, until we reach the first layer.
+
+--
+
+But what we really need is `\(\frac{\partial{C}}{\partial{w^l_j}}\)` to update the weights.
+
+---
+#Backpropagation
+
+In order to update the weights, we really need to know how our costs are changing as a result of our chosen weights.  This is actually super simple to do given what we already know:
+
+ - `\(\frac{\partial{C}}{\partial{w^l_{j,k}}} = a^{l-1}_k\delta^l_j\)`
+
+Or,
+
+--
+
+ - `\(\frac{\partial{C}}{\partial{w^l}} = a_{input}\delta^l_{output}\)`
+
+Where `\(a_{input}\)` is the .hi[input] to the weight for layer `\(l\)` and `\(\delta_{output}\)` is the .hi-orange[error of the output] from the weight `\(w^l\)`
+
+--
+
+Thus, the MSE for the guess `\(\widehat{y}\)` of `\(y\)` will trickle through the weights and update them as the algorithm learns. 
+--
+The error from the output trickles .hi[back] through the layers, .hi-orange[propagating] changes across all the weights at once
+
+---
+#Backpropagation
+
+Let's see this in action:
+
+&lt;center&gt;
+&lt;img src="https://miro.medium.com/proxy/1*mTTmfdMcFlPtyu8__vRHOQ.gif" alt="backprop", width = "70%"&gt;
+&lt;/center&gt;
+
+.footnote[
+.orange[*] Source: Medium.com
+]
+
+---
+# Your errors
+
+You can think of this process as finding the .hi[bottom of a bowl] by rolling a ball (with no momentum) down the side of it. The method we used before is called .hi[gradient descent], but there are others (we'll see those later.)
+
+--
+
+As the ball gets close to the bottom of the bowl, it will slow down and eventually stop at the lowest point.
+
+--
+
+ - Let's look at how gradient descent finds its way to the optimal point:
+
+&lt;center&gt;
+&lt;img src="https://suniljangirblog.files.wordpress.com/2018/12/1-1.gif?w=379" alt="backprop", width = "30%"&gt;
+&lt;/center&gt;
+
+---
+#Other Elements
+
+Unlike other machine learning models we've seen so far, Neural Networks learn over what are called .hi-orange[epochs.]
+
+--
+
+- .hi-orange[dfn] Epoch: One full pass of the model over your training data set (updating the weights for each pass)
+
+--
+
+- They do this because they can still learn from data they have already seen before, so long as the network output has a non-zero error and they haven't reached the optimization point for the data they've seen.
+
+Let's watch some neural networks .hi[do their thing.] Go here and play around with the tensorflow app: &lt;a href = 'https://playground.tensorflow.org/#activation=tanh&amp;batchSize=10&amp;dataset=circle&amp;regDataset=reg-plane&amp;learningRate=0.03&amp;regularizationRate=0&amp;noise=0&amp;networkShape=4,2&amp;seed=0.25898&amp;showTestData=false&amp;discretize=false&amp;percTrainData=50&amp;x=true&amp;y=true&amp;xTimesY=false&amp;xSquared=false&amp;ySquared=false&amp;cosX=false&amp;sinX=false&amp;cosY=false&amp;sinY=false&amp;collectStats=false&amp;problem=classification&amp;initZero=false&amp;hideText=false'&gt;playground&lt;/a&gt;.
+
+- Check out the spiral to see the 'hardest' pattern to fit.
+---
+# Some pitfalls of neural networks
+
+- They are extremely flexible - and as we know already, that means they are prone to .hi[overfitting.] Even more so than the algorithms you've seen so far.
+
+--
+
+- They also have a ton of components to consider. You have an activation function to choose, you have a number of layers, you have the number of nodes .hi[IN] those layers...
+
+---
+#Some pitfalls of  neural networks
+
+&lt;img src="images/snoop.jpg" style="display: block; margin: auto;" /&gt;
+
+---
+#Some pitfalls of neural networks
+
+- this makes cross-validation much more difficult. They are much more reliant on either guessing and checking (.hi[bad]) or having experience with them (.hi-orange[better]).
+
+--
+
+- Further, because they climb to an optimum, there's no guarantee that the solution you find is the .hi[best] one you could have found for your data. It's highly dependent on how you're updating your weights (.hi-orange[optimization method]) and where you started.
+
+--
+
+How we've updated our weights so far has used something called .hi[gradient descent].
+
+--
+
+These two reasons are why the methods often used to minimize a cost function are .hi[super bizarre.]
+
+---
+#Common Optimization Techniques
+
+ An example, .hi[Stochastic Gradient Descent]: 
+ --
+Rather than calculate the error across all points in the sample, only calculate the error for a single point at a time to speed up the process and avoid overfit/getting stuck at the same time.
+
+Let's see how some of these weird functions act next to gradient descent .hi-red[red ball.]
+
+--
+
+&lt;center&gt;
+&lt;img src="https://mlfromscratch.com/content/images/2019/12/saddle.gif" alt="optimizers", width = "50%"&gt;
+&lt;/center&gt;
+
+---
+#Proogramming a Neural Network
+
+It is perfectly possible to code a neural network by hand, but by far the most common tool used to write neural networks for production is to use .hi[Tensorflow] and .hi-orange[keras.]
+
+--
+
+The main downside of these is that they're both written under the hood in python, which means it may take some wrangling to get tensorflow for Rstudio to work on your computer.
+
+--
+
+Both of these work together and use a strange representation of data called a 'tensor'. 
+--
+I don't have enough time to explain what a tensor is, but luckily this adorable human does a much better job than I ever could: &lt;a href = 'https://www.youtube.com/watch?v=f5liqUk0ZTw'&gt; tensors &lt;/a&gt;
+
+--
+
+.hi[Tensorflow] lets us build a model sequentially, layer by layer. This is very similar to how tidymodels lets you build your data process.
+
+---
+#Tensorflow &amp; Keras
+
+Like in .hi-orange[tidymodels], .hi[tensorflow] starts with a model-type object. 
+--
+For our purposes, this is `keras_model_sequential()`.
+
+--
+
+This tells tensorflow we're going to build our neural network sequentially. 
+
+--
+
+Just like .hi-orange[parsnip], we build an abstration of a model that will be fed data to train on later.
+---
+#MNIST dataset
+
+First, let's remind ourselves what our neural network is trying to do:
+
+--
+
+- We want our neural network to read .hi[handwritten numbers] and tell us what number they are .hi[supposed] to represent.
+
+--
+
+Just like with all machine learning, we need to really understand our data to do a good job predicting. Let's take a closer look at one observation in our dataset.
+
+---
+#MNIST dataset
+
+
+```r
+mnist &lt;- dataset_mnist()
+
+mnist$train$x
+```
+
+
+ - .hi[WOOOO] that was a bad idea. Here's an illustration of what each `\(x_i\)` looks like:
+ 
+&lt;img src="images/mnistdat.png" width="50%" style="display: block; margin: auto;" /&gt;
+ 
+---
+#MNIST data
+
+You don't trust me, fine. We can look at our stuff too.
+
+&lt;img src="004-slides_files/figure-html/unnamed-chunk-13-1.svg" width="50%" style="display: block; margin: auto;" /&gt;
+---
+#MNIST data
+
+How about the first 25
+
+&lt;img src="004-slides_files/figure-html/unnamed-chunk-14-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+#MNIST
+
+Ok, that's great, but remember we need to set up this problem so we can turn a picture into an outcome (the numbers 0-9). How do we do it?
+
+--
+
+Well, we can squish the data so that each of these matrices in just a very long row of Xs. (28*28 = 784 different variables.)
+
+--
+
+&lt;img src="images/flatten.png" width="20%" style="display: block; margin: auto;" /&gt;
+
+In practice, we can do this with color images as well, with each RGB value acting as a different pixel score.
+
+---
+#Tensorflow &amp; Keras
+
+Ok- let's do this in order.
+
+
+```r
+model &lt;- keras_model_sequential()
+```
+
+---
+#Tensorflow &amp; Keras
+
+Ok- let's do this in order.
+
+
+```r
+model &lt;- keras_model_sequential() %&gt;%
+  layer_flatten(input_shape = c(28,28))
+```
+
+--
+
+This layer takes our 28x28 pixel image and flatttens it into a vector so the model can read it. Think of this like a recipe step.
+
+---
+#Tensorflow &amp; Keras
+
+Ok- let's do this in order.
+
+
+```r
+model &lt;- keras_model_sequential() %&gt;%
+  layer_flatten(input_shape = c(28,28)) %&gt;%
+  layer_dense(units = 128, activation = "relu")
+```
+
+--
+
+This is our first layer in our Neural network! It creates 128 different 'neurons' (or perceptrons) and sets their activation function to be a relu. 
+
+--
+
+- What's a relu? It stands for: .hi[Re]ctified .hi[L]inear .hi[U]nit. It's all the rage these days, but it is super simple:
+`$$ReLU(X) = max(0, X)$$`
+&lt;img src="images/relu.png" width="28%" style="display: block; margin: auto;" /&gt;
+
+---
+#Tensorflow &amp; Keras
+
+Ok- let's do this in order.
+
+
+```r
+model &lt;- keras_model_sequential() %&gt;%
+  layer_flatten(input_shape = c(28,28)) %&gt;%
+  layer_dense(units = 128, activation = "relu", name= 'hiddenlayer') %&gt;%
+  layer_dense(10, activation = "softmax", name = 'outputlayer')
+```
+
+--
+
+This is our output layer, and the activation it's using is simply - "classify this into one of 10 (number of nodes) classes, and guess the one with the largest probability."
+
+--
+
+And that's a neural network! I gave the layers names, because it will be easier to see what they do if I come back later. How do I do that?
+
+---
+#Tensorflow &amp; Keras
+
+
+```r
+summary(model)
+```
+
+```
+#&gt; ________________________________________________________________________________
+#&gt; Layer (type)                        Output Shape                    Param #     
+#&gt; ================================================================================
+#&gt; flatten_2 (Flatten)                 (None, 784)                     0           
+#&gt; ________________________________________________________________________________
+#&gt; hiddenlayer (Dense)                 (None, 128)                     100480      
+#&gt; ________________________________________________________________________________
+#&gt; outputlayer (Dense)                 (None, 10)                      1290        
+#&gt; ================================================================================
+#&gt; Total params: 101,770
+#&gt; Trainable params: 101,770
+#&gt; Non-trainable params: 0
+#&gt; ________________________________________________________________________________
+```
+
+you can see how many parameters they have and check - it should be `\(784\text{(28pix*28pix)}*128\text{(number of hidden neurons)} + 128(w_0 \ or \ b) = 100,480\)`
+
+---
+#Tensorflow &amp; Keras
+you can see how many parameters they have and check - it should be `\(784\text{(28pix*28pix)}*128\text{(number of hidden neurons)} + 128(w_0 \ or \ b) = 100,480\)`
+
+--
+
+That is what's called a:
+
+--
+
+ - .hi[dfn, Shitload:] A lot.
+ 
+of parameters.
+
+---
+#Tensorflow &amp; Keras
+
+Now we need to .hi[prepare] the model.
+
+--
+
+This is done with a `compile` command. We need to give that command a loss function to use, an optimizer (we'll use stochastic gradient descent (**sgd** in tensorflow) which I described earlier) and any metrics we're interested in (let's look at accuracy.)
+
+--
+
+
+```r
+model %&gt;% compile(
+  loss = "sparse_categorical_crossentropy",
+  optimizer = "sgd",
+  metrics = "accuracy"
+)
+```
+---
+#Tensorflow &amp; Keras
+
+Now, we can use keras/tf to fit our model. First, let's separate our data. 
+
+
+```r
+mnist$train$x = mnist$train$x/255 #normalizes to (0,1)
+mnist$test$x = mnist$test$x/255 #normalizes to (0,1)
+```
+
+I want you to see what it looks like when it runs, so I'm going to move to a new slide.
+
+---
+#Tensorflow &amp; Keras
+
+
+```r
+model %&gt;% 
+  fit(
+    x = mnist$train$x, y = mnist$train$y,
+    epochs = 5,
+    validation_split = 0.3
+  )
+```
+&lt;img src="images/Tensorflow1.png" width="50%" style="display: block; margin: auto;" /&gt;
+---
+#Tensorflow &amp; Keras
+
+&lt;img src="images/tensorflowgraph.png" width="80%" style="display: block; margin: auto;" /&gt;
+
+---
+#Tensorflow
+
+And that's how you run a neural network! Ours is getting a ~ 92% accuracy rate classifying pictures into one of .hi[10 different categories]. If you run this for 40 epochs, you'll get ~ 95% accuracy.
+
+--
+
+It's .hi[super] easy.
+
+--
+
+It's .hi-orange[too] easy.
+
+--
+
+Be careful... remember all of those things you've learned about model selection? They matter 10x more with deep learning.
+
+---
+# Other types of networks
+
+There are TONS of other cool structures, but they all work exactly like these under the hood - they just add fancy math that allows us to process our inputs in a slightly different way.
+
+--
+
+.hi[CNN:] Convolutional Neural Network. You know that flattening step? That kind of sucks. We're actually losing information on the location of the pixels when we do that. If only we could hold onto that information...
+
+--
+
+&lt;img src="images/convolve.jpeg" width="50%" style="display: block; margin: auto;" /&gt;
+
+--
+
+.hi[By using filters] and feeding in data in a special way, we can hold onto the positional information of our numbers.
+
+---
+# Other types of networks
+
+What about timeseries? Wouldn't it be nice to be able to tell a neural network the 'order' the data should occur in.
+
+--
+
+.hi[LSTM/GRU]: Long-Short Term Memory/ Gated Recurrent Unit. Both of these adapt our neurons so they can 'hold onto' data further in the learning process and change it as they like. The diagram is ugly, but...
+
+--
+
+&lt;img src="images/lstm.png" width="30%" style="display: block; margin: auto;" /&gt;
+
+where each cell is now
+
+&lt;img src="images/lstmcell.png" width="20%" style="display: block; margin: auto;" /&gt;
+---
+#Other types of Networks
+
+What if we literally don't know anything about the data, just how each object relates to one another (think DNA structures)?
+
+--
+
+.hi[GCN:] Graph convolutional networks. These read in graph data, and using the techniques you saw for CNNs, can predict new patterns.
+
+--
+
+&lt;img src="images/gcn.png" width="50%" style="display: block; margin: auto;" /&gt;
+
+---
+#Other types of Networks
+
+Oh yeah, remember this?
+
+&lt;img src="images/mnist_gen.png" width="50%" style="display: block; margin: auto;" /&gt;
+
+--
+
+That was generated by a neural network. Called a .hi[GAN] or Generative Adversarial Network, it is trained by having two neural networks duke it out.
+
+--
+
+- One of the networks tries to .hi-orange[imitate] the hand-drawn pictures
+
+- The other network tries to .hi-orange[detect] compute-generated pictures.
+
+The result is the often cited deep-fake videos.
+---
+#the only good use of a deepfake
+
+Imagine Nicholas Cage was in every movie, playing every part.
+
+&lt;center&gt;
+&lt;img src="https://emaragkos.gr/wp-content/uploads/2019/10/280px-Deepfake_example.gif" alt="deepfake1", width = "70%"&gt;
+&lt;/center&gt;
+
+
+---
+#Make Bob Ross Nightmare Fuel
+
+&lt;center&gt;
+&lt;img src="https://hips.hearstapps.com/pop.h-cdn.co/assets/17/14/1491507280-bob2.gif" alt="backprop", width = "70%"&gt;
+&lt;/center&gt;
+
+The only difference between these is what data the model is trained on.
+
+--
+
+.hi[But you basically understand how to do this yourself now.]
+
+---
+#GAN training process:
+
+&lt;img src="images/GANs.png" width="80%" style="display: block; margin: auto;" /&gt;
+
+--
+
+Just by looking at the diagram for a while, and learning how convolutional neural nets work, you could figure this out.
+
+---
+#With great power...
+
+These models are .hi[powerful.]
+
+--
+
+However, they aren't interpretable (.hi-orange[yet], and they're getting MUCH better at this every year.)
+
+--
+
+They also use hundreds of thousands of parameters for even very simple models.
+
+--
+
+That means you have to be super careful in how you evaluate them.
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
