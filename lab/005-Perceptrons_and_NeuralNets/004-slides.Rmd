@@ -654,7 +654,7 @@ knitr::include_graphics('images/mnistdat.png')
 
 You don't trust me, fine. We can look at our stuff too.
 
-```{r, echo = F, out.width='50%'}
+```{r, echo = F, fig.height = 3, fig.width = 5}
 train_images <- mnist$train$x
 image_1 <- as.data.frame(train_images[1, , ])
 colnames(image_1) <- seq_len(ncol(image_1))
@@ -677,7 +677,7 @@ ggplot(image_1, aes(x = x, y = y, fill = value)) +
 
 How about the first 25
 
-```{r, echo = F}
+```{r, echo = F, fig.height = 4, fig.width = 4}
 train_labels = mnist$train$y
 class_names = c('zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine')
 par(mfcol=c(5,5))
