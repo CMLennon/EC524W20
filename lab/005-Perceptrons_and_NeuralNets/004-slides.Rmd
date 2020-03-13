@@ -586,7 +586,7 @@ Let's see how some of these weird functions act next to gradient descent .hi-red
 </center>
 
 ---
-#Proogramming a Neural Network
+#Programming a Neural Network
 
 It is perfectly possible to code a neural network by hand, but by far the most common tool used to write neural networks for production is to use .hi[Tensorflow] and .hi-orange[keras.]
 
@@ -603,6 +603,27 @@ I don't have enough time to explain what a tensor is, but luckily this adorable 
 --
 
 .hi[Tensorflow] lets us build a model sequentially, layer by layer. This is very similar to how tidymodels lets you build your data process.
+
+---
+#Tensorflow & Keras
+
+.hi[Tensorflow] works by letting developers create **dataflow graphs** which describe how data moves through a series of processing nodes.
+
+--
+
+This is a little different from Tidymodels - Tidymodels splits the processing steps up into different 'tasks' and then allows you to map each task to one another. .hi[Tensorflow] has only a single task.
+
+--
+
+Though Tensorflow is written to be accessed by .hi-orange[Python], it's really written in .hi-blue[C++].
+
+--
+
+The main advantage for tensorflow though is the same as for tidymodels - rather than having to know how the models work in detail, you can implement algorithms in abstraction.
+
+--
+
+Lastly - one weird aspect of tensorflow/keras is that even with random seeding, the results generated on two computers can be different. There aren't good ways to produce deterministic results.
 
 ---
 #Tensorflow & Keras
