@@ -607,7 +607,11 @@ I don't have enough time to explain what a tensor is, but luckily this adorable 
 ---
 #Tensorflow & Keras
 
+<<<<<<< HEAD
 .hi[Tensorflow] works by letting developers create **dataflow graphs** which describe how data moves through a series of processing nodes.
+=======
+.hi[Tensorflow] works by letting developersa create **dataflow graphs** which describe how data moves through a series of processing nodes.
+>>>>>>> 2dfdd3df5961e0023c12c7635e0b7ace2cc03e70
 
 --
 
