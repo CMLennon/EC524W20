@@ -167,7 +167,7 @@ In order to understand how the intuition for how a perceptron works mathematical
 
 
 ```{r, echo = F, out.width = '60%'}
-knitr::include_graphics('images/neuron_diagram.png')
+knitr::include_graphics('images/Neuron_diagram.png')
 ```
 
 .footnote[
